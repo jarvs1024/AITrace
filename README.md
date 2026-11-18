@@ -24,10 +24,10 @@ AITrace 面向 SSD 制造/测试场景：从自动化测试平台**旁路**接�
 
 | 文件 | 内容 |
 |---|---|
-| [完整设计文档 V1 初稿](docs/superpowers/specs/2026-11-08-aitrace-design-v1.md) | 宏观架构（三阶段 + 四级漏斗 + 代码事实抽取）、七层实现分层、领域模型与数据资产、六大机制、提示工程、通知协同、接口契约、十二项技术难点、专利布局、路线图、度量体系 |
-| [架构图 V1 初稿](architecture-v1.svg) | 宏观架构：平台供料 → 阶段 1 漏斗筛选 → 阶段 2 AI 深诊 → 阶段 3 通知闭环 → 知识资产库·自进化中枢（SVG · [PNG](architecture-v1.png) · [HTML](architecture-v1.html)） |
+| [完整设计文档 V0 初稿](docs/superpowers/specs/2026-11-08-aitrace-design-v0.md) | 宏观架构（三阶段 + 四级漏斗 + 代码事实抽取）、七层实现分层、领域模型与数据资产、六大机制、提示工程、通知协同、接口契约、十二项技术难点、专利布局、路线图、度量体系 |
+| [架构图 V0 初稿](architecture-v0.svg) | 宏观架构：平台供料 → 阶段 1 漏斗筛选 → 阶段 2 AI 深诊 → 阶段 3 通知闭环 → 知识资产库·自进化中枢（SVG · [PNG](architecture-v0.png) · [HTML](architecture-v0.html)） |
 
-> 架构图与设计文档 §2 逐项对应：**图为骨架，字为细节**。后续版本以 `architecture-v1` 为基线分叉。
+> 架构图与设计文档 §2 逐项对应：**图为骨架，字为细节**。后续版本以 `architecture-v0` 为基线分叉。
 
 ## 技术栈
 
