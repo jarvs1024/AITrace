@@ -24,10 +24,10 @@ AITrace 面向 SSD 制造/测试场景：从自动化测试平台**旁路**接�
 
 | 文件 | 内容 |
 |---|---|
-| [完整设计文档](docs/superpowers/specs/2026-11-08-ssd-test-failure-ai-analysis-design.md) | 七层架构、领域模型与数据资产、六大机制、提示工程、通知协同、接口契约、十二项技术难点、专利布局、路线图、度量体系 |
-| [架构图 v3](architecture-v3.svg) | 分层架构 + 端到端闭环（SVG · [PNG](architecture-v3.png) · [HTML](architecture-v3.html)） |
-| [架构图 v2](architecture-v2.svg) | 早期版本（SVG · [PNG](architecture-v2.png) · [HTML](architecture-v2.html)） |
-| [架构图 v1](architecture-diagram.html) | 详细版：六大机制卡片、部署拓扑 |
+| [完整设计文档 V1 初稿](docs/superpowers/specs/2026-11-08-aitrace-design-v1.md) | 宏观架构（三阶段 + 四级漏斗 + 代码事实抽取）、七层实现分层、领域模型与数据资产、六大机制、提示工程、通知协同、接口契约、十二项技术难点、专利布局、路线图、度量体系 |
+| [架构图 V1 初稿](architecture-v1.svg) | 宏观架构：平台供料 → 阶段 1 漏斗筛选 → 阶段 2 AI 深诊 → 阶段 3 通知闭环 → 知识资产库·自进化中枢（SVG · [PNG](architecture-v1.png) · [HTML](architecture-v1.html)） |
+
+> 架构图与设计文档 §2 逐项对应：**图为骨架，字为细节**。后续版本以 `architecture-v1` 为基线分叉。
 
 ## 技术栈
 
