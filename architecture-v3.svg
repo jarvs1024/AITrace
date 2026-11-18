@@ -1,0 +1,245 @@
+<svg viewBox="0 0 1420 872" width="1420" height="872" xmlns="http://www.w3.org/2000/svg"
+     font-family="'Outfit','PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2b7cd3"/>
+    </marker>
+    <marker id="r" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#d94a3d"/>
+    </marker>
+    <marker id="bd" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5b8fd6"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1420" height="872" fill="#ffffff"/>
+  <text x="710" y="46" text-anchor="middle" font-size="25" font-weight="700" fill="#1a4b8c">独立 AI 测试失败分析与漏斗筛选系统 · 宏观架构</text>
+  <text x="710" y="70" text-anchor="middle" font-size="12.5" fill="#5b7794">平台供料（运行数据 + 测试代码）→ 漏斗降噪 → 代码×日志×环境联合诊断 → 分级通知与人工反馈 → 知识资产沉淀反哺初筛</text>
+
+  <!-- ================= 平台侧 ================= -->
+  <rect x="24" y="92" width="248" height="728" rx="14" fill="#e9f1fb" stroke="#b9d4f0" stroke-width="1.5"/>
+  <text x="148" y="122" text-anchor="middle" font-size="14" font-weight="700" fill="#16324f">现有自动化测试平台</text>
+  <text x="148" y="141" text-anchor="middle" font-size="12" fill="#5b7794">（外部对接 · 只读接入）</text>
+
+  <rect x="40" y="172" width="216" height="68" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="148" y="202" text-anchor="middle" font-size="12.4" font-weight="600" fill="#16324f">自动化调度与用例编排</text>
+  <text x="148" y="221" text-anchor="middle" font-size="10.2" fill="#7b8fa5">用例顺序 · 重试 · 批次分组</text>
+
+  <rect x="40" y="252" width="216" height="68" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="148" y="282" text-anchor="middle" font-size="12.4" font-weight="600" fill="#16324f">测试日志 / 串口日志</text>
+  <text x="148" y="301" text-anchor="middle" font-size="10.2" fill="#7b8fa5">用例输出 · 内核 · 设备日志</text>
+
+  <rect x="40" y="332" width="216" height="68" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="148" y="362" text-anchor="middle" font-size="12.4" font-weight="600" fill="#16324f">测试环境信息</text>
+  <text x="148" y="381" text-anchor="middle" font-size="10.2" fill="#7b8fa5">SSD / 内存 / CXL 硬件</text>
+
+  <rect x="40" y="412" width="216" height="68" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="242" cy="428" r="4" fill="#2b7cd3"/>
+  <text x="148" y="442" text-anchor="middle" font-size="12.4" font-weight="700" fill="#1a4b8c">测试脚本仓库（Python）</text>
+  <text x="148" y="461" text-anchor="middle" font-size="10.2" fill="#2b7cd3">断言 · 参数 · 依赖关系</text>
+
+  <rect x="40" y="492" width="216" height="68" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="242" cy="508" r="4" fill="#2b7cd3"/>
+  <text x="148" y="522" text-anchor="middle" font-size="12.4" font-weight="700" fill="#1a4b8c">拓扑与批次快照</text>
+  <text x="148" y="541" text-anchor="middle" font-size="10.2" fill="#2b7cd3">主机↔HBA↔背板↔温区</text>
+
+  <rect x="40" y="572" width="216" height="68" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="242" cy="588" r="4" fill="#2b7cd3"/>
+  <text x="148" y="602" text-anchor="middle" font-size="12.4" font-weight="700" fill="#1a4b8c">失败结果与断言详情</text>
+  <text x="148" y="621" text-anchor="middle" font-size="10.2" fill="#2b7cd3">失败断言 · 阶段 · 耗时</text>
+
+  <rect x="40" y="656" width="216" height="84" rx="9" fill="#fff8e6" stroke="#e3b95a"/>
+  <text x="148" y="677" text-anchor="middle" font-size="11.8" font-weight="700" fill="#8a6414">关键前提</text>
+  <text x="148" y="696" text-anchor="middle" font-size="10.2" fill="#8a6414">平台需暴露拓扑、批次标识</text>
+  <text x="148" y="711" text-anchor="middle" font-size="10.2" fill="#8a6414">以及用例失败断言详情</text>
+  <text x="148" y="729" text-anchor="middle" font-size="10.2" fill="#a07a2e">否则环境误报无法剥离</text>
+
+  <text x="148" y="766" text-anchor="middle" font-size="10" fill="#7b8fa5">本系统不修改平台代码，</text>
+  <text x="148" y="781" text-anchor="middle" font-size="10" fill="#7b8fa5">仅通过标准接口只读接入</text>
+
+  <!-- ================= 系统壳 ================= -->
+  <rect x="300" y="92" width="1096" height="728" rx="16" fill="#ffffff" stroke="#2b7cd3" stroke-width="2"/>
+  <rect x="300" y="92" width="1096" height="42" rx="16" fill="#dceafa"/>
+  <rect x="300" y="118" width="1096" height="16" fill="#dceafa"/>
+  <text x="848" y="119" text-anchor="middle" font-size="16" font-weight="700" fill="#1a4b8c">独立 AI 失败分析系统</text>
+
+  <!-- ============ 阶段 1 ============ -->
+  <rect x="320" y="160" width="286" height="440" rx="12" fill="#f7fbff" stroke="#d3e4f7"/>
+  <text x="463" y="188" text-anchor="middle" font-size="12.6" font-weight="600" fill="#2b7cd3" letter-spacing="1">阶段 1</text>
+  <text x="463" y="207" text-anchor="middle" font-size="12.8" font-weight="700" fill="#16324f">多级数据清洗与漏斗筛选</text>
+
+  <polygon points="342,226 584,226 552,266 374,266" fill="#5cc3be"/>
+  <text x="463" y="252" text-anchor="middle" font-size="12.6" font-weight="700" fill="#ffffff">一级初筛</text>
+  <polygon points="374,268 552,268 528,304 398,304" fill="#86d5dc"/>
+  <text x="463" y="292" text-anchor="middle" font-size="11.8" font-weight="600" fill="#0e4b52">二 / 三级精筛</text>
+  <polygon points="398,306 528,306 512,334 414,334" fill="#a8e0e5"/>
+  <text x="463" y="326" text-anchor="middle" font-size="11.4" font-weight="600" fill="#0e4b52">指纹去重</text>
+  <polygon points="414,336 512,336 500,360 426,360" fill="#c4e9ec"/>
+  <text x="463" y="353" text-anchor="middle" font-size="11" font-weight="600" fill="#0e4b52">级联抑制</text>
+
+  <circle cx="340" cy="378" r="2.4" fill="#8fa3b8"/>
+  <text x="350" y="382" font-size="10.2" fill="#3a4a5c">一级：本地规则 + 大面积环境异常拦截</text>
+  <circle cx="340" cy="396" r="2.4" fill="#8fa3b8"/>
+  <text x="350" y="400" font-size="10.2" fill="#3a4a5c">二 / 三级：疑难故障切片，压缩上下文</text>
+  <circle cx="340" cy="414" r="2.4" fill="#8fa3b8"/>
+  <text x="350" y="418" font-size="10.2" fill="#3a4a5c">指纹：同类失败合并为一条通知</text>
+  <circle cx="340" cy="432" r="2.4" fill="#8fa3b8"/>
+  <text x="350" y="436" font-size="10.2" fill="#3a4a5c">级联：只保留链路上的首个失败点</text>
+
+  <rect x="336" y="450" width="254" height="76" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="576" cy="466" r="4" fill="#2b7cd3"/>
+  <text x="350" y="470" font-size="11.6" font-weight="700" fill="#1a4b8c">代码事实抽取（测试脚本解析）</text>
+  <text x="350" y="488" font-size="10.2" fill="#3a4a5c">用例清单 · 参数矩阵 · 断言语义</text>
+  <text x="350" y="503" font-size="10.2" fill="#3a4a5c">失败意图判定（不一致 / 超时 / 掉盘）</text>
+  <text x="350" y="518" font-size="10.2" fill="#3a4a5c">依赖关系 DAG · 日志→代码行锚点</text>
+
+  <rect x="336" y="538" width="254" height="52" rx="9" fill="#fdecea" stroke="#d94a3d"/>
+  <circle cx="354" cy="556" r="6" fill="#d94a3d"/>
+  <text x="354" y="559" text-anchor="middle" font-size="8" font-weight="700" fill="#ffffff">!</text>
+  <text x="368" y="560" font-size="12" font-weight="700" fill="#b3372c">截流直通知（免 AI 分析）</text>
+  <text x="350" y="579" font-size="10.2" fill="#a8625a">环境类异常直接触达，不消耗算力</text>
+
+  <!-- ============ 阶段 2 ============ -->
+  <rect x="666" y="160" width="380" height="440" rx="12" fill="#f7fbff" stroke="#d3e4f7"/>
+  <text x="856" y="188" text-anchor="middle" font-size="12.6" font-weight="600" fill="#2b7cd3" letter-spacing="1">阶段 2</text>
+  <text x="856" y="207" text-anchor="middle" font-size="12.8" font-weight="700" fill="#16324f">AI 深度诊断引擎</text>
+
+  <rect x="682" y="222" width="348" height="64" rx="10" fill="#2b7cd3"/>
+  <text x="856" y="247" text-anchor="middle" font-size="13.6" font-weight="700" fill="#ffffff">AI 深度诊断引擎（Qoder）</text>
+  <text x="856" y="268" text-anchor="middle" font-size="10.4" fill="#d5e6f9">代码 × 日志 × 环境 联合推理 · 因果起点定位</text>
+
+  <rect x="682" y="298" width="168" height="72" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="836" cy="314" r="4" fill="#2b7cd3"/>
+  <text x="696" y="320" font-size="11.8" font-weight="700" fill="#1a4b8c">代码-日志对齐</text>
+  <text x="696" y="337" font-size="10.2" fill="#3a4a5c">断言语义 ↔ 日志锚点</text>
+  <text x="696" y="352" font-size="10.2" fill="#3a4a5c">调用栈定位失败行</text>
+  <text x="696" y="366" font-size="10.2" fill="#7b8fa5">区分读错/写错/超时</text>
+
+  <rect x="858" y="298" width="172" height="72" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="872" y="320" font-size="11.8" font-weight="700" fill="#16324f">SSH 实时探查</text>
+  <text x="872" y="337" font-size="10.2" fill="#3a4a5c">盘状态 / 内存 / 硬件</text>
+  <text x="872" y="352" font-size="10.2" fill="#c2703c">仅失败后 · 只读</text>
+  <text x="872" y="366" font-size="10.2" fill="#c2703c">超时熔断 · 不干扰在测</text>
+
+  <rect x="682" y="382" width="168" height="72" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="836" cy="398" r="4" fill="#2b7cd3"/>
+  <text x="696" y="404" font-size="11.8" font-weight="700" fill="#1a4b8c">同批次对照归因</text>
+  <text x="696" y="421" font-size="10.2" fill="#3a4a5c">DUT 缺陷 vs 环境误报</text>
+  <text x="696" y="436" font-size="10.2" fill="#3a4a5c">统计显著性判定</text>
+  <text x="696" y="450" font-size="10.2" fill="#7b8fa5">反事实对照组</text>
+
+  <rect x="858" y="382" width="172" height="72" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="1016" cy="398" r="4" fill="#2b7cd3"/>
+  <text x="872" y="404" font-size="11.8" font-weight="700" fill="#1a4b8c">基线与变更对比</text>
+  <text x="872" y="421" font-size="10.2" fill="#3a4a5c">新增 / 回归 / 已知</text>
+  <text x="872" y="436" font-size="10.2" fill="#3a4a5c">关联最近固件/脚本变更</text>
+  <text x="872" y="450" font-size="10.2" fill="#7b8fa5">M0 起逐步启用</text>
+
+  <rect x="682" y="466" width="348" height="52" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="1016" cy="480" r="4" fill="#2b7cd3"/>
+  <text x="696" y="486" font-size="11.8" font-weight="700" fill="#1a4b8c">复现配方生成 + 影子执行（可选增强）</text>
+  <text x="696" y="504" font-size="10.2" fill="#3a4a5c">确证后回填置信度 ≥ 0.95，占真机需成本控制</text>
+
+  <rect x="682" y="530" width="348" height="52" rx="9" fill="#eaf3fd" stroke="#b9d4f0"/>
+  <text x="696" y="550" font-size="11.6" font-weight="700" fill="#16324f">输出</text>
+  <text x="696" y="568" font-size="10.4" fill="#4a6076">根因 + 证据链 + 置信度 + 复现配方</text>
+
+  <!-- ============ 阶段 3 ============ -->
+  <rect x="1106" y="160" width="270" height="440" rx="12" fill="#f7fbff" stroke="#d3e4f7"/>
+  <text x="1241" y="188" text-anchor="middle" font-size="12.6" font-weight="600" fill="#2b7cd3" letter-spacing="1">阶段 3</text>
+  <text x="1241" y="207" text-anchor="middle" font-size="12.8" font-weight="700" fill="#16324f">结果分类与群通知闭环</text>
+
+  <rect x="1122" y="222" width="238" height="56" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="1136" y="242" font-size="11.8" font-weight="700" fill="#16324f">失败原因分类（责任域 L0–L6）</text>
+  <text x="1136" y="260" font-size="10.2" fill="#7b8fa5">环境·主机·框架·固件·器件</text>
+
+  <rect x="1122" y="288" width="238" height="56" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="1136" y="308" font-size="11.8" font-weight="700" fill="#16324f">置信度分级 P0–P3</text>
+  <text x="1136" y="326" font-size="10.2" fill="#7b8fa5">分级路由 · 降噪 · 复发抑制</text>
+
+  <rect x="1122" y="354" width="238" height="56" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="1136" y="374" font-size="11.8" font-weight="700" fill="#16324f">测试群消息推送</text>
+  <text x="1136" y="392" font-size="10.2" fill="#7b8fa5">钉钉卡片，结论内可直接操作</text>
+
+  <rect x="1122" y="420" width="238" height="58" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="1346" cy="436" r="4" fill="#2b7cd3"/>
+  <text x="1136" y="440" font-size="11.8" font-weight="700" fill="#1a4b8c">人工反馈采集</text>
+  <text x="1136" y="458" font-size="10.2" fill="#3a4a5c">采纳 / 纠正 / 驳回</text>
+  <text x="1136" y="472" font-size="10.2" fill="#2b7cd3">闭环进化的唯一燃料</text>
+
+  <rect x="1122" y="488" width="238" height="56" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
+  <text x="1136" y="508" font-size="11.8" font-weight="700" fill="#16324f">失效模式卡归档</text>
+  <text x="1136" y="526" font-size="10.2" fill="#7b8fa5">确认结论才可入资产库</text>
+
+  <!-- ================= 知识资产库 ================= -->
+  <rect x="320" y="646" width="1056" height="144" rx="12" fill="#f2f8ff" stroke="#2b7cd3" stroke-width="1.5" stroke-dasharray="7 4"/>
+  <text x="848" y="672" text-anchor="middle" font-size="13.6" font-weight="700" fill="#1a4b8c">知识资产库 · 自进化中枢</text>
+  <text x="1358" y="672" text-anchor="end" font-size="10.4" fill="#5b8fd6">双闸门评估 · 灰度发布 · 一键回滚</text>
+
+  <rect x="345" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
+  <text x="359" y="706" font-size="11.4" font-weight="700" fill="#16324f">一级初筛规则库</text>
+  <text x="359" y="728" font-size="9.8" fill="#7b8fa5">确认结论蒸馏而成</text>
+  <text x="359" y="744" font-size="9.8" fill="#7b8fa5">零 AI 快路径</text>
+  <text x="359" y="760" font-size="9.8" fill="#7b8fa5">命中率持续上升</text>
+
+  <rect x="514" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
+  <text x="528" y="706" font-size="11.4" font-weight="700" fill="#16324f">失效模式卡</text>
+  <text x="528" y="728" font-size="9.8" fill="#7b8fa5">症状指纹 · 确认根因</text>
+  <text x="528" y="744" font-size="9.8" fill="#7b8fa5">处置手册</text>
+  <text x="528" y="760" font-size="9.8" fill="#7b8fa5">版本血缘</text>
+
+  <rect x="683" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
+  <text x="697" y="706" font-size="11.4" font-weight="700" fill="#16324f">复现配方库</text>
+  <text x="697" y="728" font-size="9.8" fill="#7b8fa5">结构化可执行剧本</text>
+  <text x="697" y="744" font-size="9.8" fill="#7b8fa5">影子真机可复跑</text>
+  <text x="697" y="760" font-size="9.8" fill="#7b8fa5">确证信号</text>
+
+  <rect x="852" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
+  <text x="866" y="706" font-size="11.4" font-weight="700" fill="#16324f">因果先验图</text>
+  <text x="866" y="728" font-size="9.8" fill="#7b8fa5">级联边</text>
+  <text x="866" y="744" font-size="9.8" fill="#7b8fa5">非缺陷超时边</text>
+  <text x="866" y="760" font-size="9.8" fill="#7b8fa5">增量维护</text>
+
+  <rect x="1021" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
+  <circle cx="1167" cy="700" r="4" fill="#2b7cd3"/>
+  <text x="1035" y="706" font-size="11.4" font-weight="700" fill="#1a4b8c">代码事实图谱</text>
+  <text x="1035" y="728" font-size="9.8" fill="#3a4a5c">用例 · 断言语义</text>
+  <text x="1035" y="744" font-size="9.8" fill="#3a4a5c">依赖 DAG</text>
+  <text x="1035" y="760" font-size="9.8" fill="#3a4a5c">跨版本复用</text>
+
+  <rect x="1190" y="684" width="160" height="92" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
+  <text x="1204" y="706" font-size="11.4" font-weight="700" fill="#16324f">反馈训练信号</text>
+  <text x="1204" y="728" font-size="9.8" fill="#7b8fa5">reward → 策略择优</text>
+  <text x="1204" y="744" font-size="9.8" fill="#7b8fa5">→ 规则更新</text>
+  <text x="1204" y="760" font-size="9.8" fill="#7b8fa5">→ 用例反推</text>
+
+  <!-- ================= 箭头 ================= -->
+  <line x1="272" y1="336" x2="316" y2="336" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
+  <text x="295" y="316" text-anchor="middle" font-size="9.6" fill="#2b7cd3">运行数据</text>
+  <text x="295" y="329" text-anchor="middle" font-size="9.6" fill="#2b7cd3">+ 测试代码</text>
+
+  <line x1="606" y1="400" x2="664" y2="400" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
+  <text x="636" y="378" text-anchor="middle" font-size="9.6" fill="#2b7cd3">疑难切片</text>
+  <text x="636" y="391" text-anchor="middle" font-size="9.6" fill="#2b7cd3">+ 证据包</text>
+
+  <line x1="1046" y1="476" x2="1104" y2="476" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
+  <text x="1075" y="432" text-anchor="middle" font-size="9.6" fill="#2b7cd3">根因</text>
+  <text x="1075" y="445" text-anchor="middle" font-size="9.6" fill="#2b7cd3">置信度</text>
+  <text x="1075" y="458" text-anchor="middle" font-size="9.6" fill="#2b7cd3">证据链</text>
+
+  <!-- 免 AI 截流旁路 -->
+  <path d="M 466 590 L 466 626 L 1082 626 L 1082 500" fill="none" stroke="#d94a3d"
+        stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#r)"/>
+  <text x="770" y="620" text-anchor="middle" font-size="10.2" fill="#d94a3d">免 AI 直达通知（环境类异常）</text>
+
+  <!-- 规则反哺 -->
+  <line x1="380" y1="646" x2="380" y2="602" stroke="#5b8fd6" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#bd)"/>
+  <text x="388" y="630" font-size="10.2" fill="#2b7cd3">规则反哺</text>
+
+  <!-- 经验归档 -->
+  <line x1="1310" y1="600" x2="1310" y2="644" stroke="#5b8fd6" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#bd)"/>
+  <text x="1318" y="628" font-size="10.2" fill="#2b7cd3">经验归档</text>
+
+  <!-- ================= 图例 ================= -->
+  <text x="24" y="846" font-size="10.6" fill="#8a95a5">虚线框 + 蓝点 = 本版新增或强化的能力　·　红点 / 红虚线 = 免 AI 截流旁路　·　实线箭头 = 主数据流（标注为阶段间传递物）</text>
+</svg>

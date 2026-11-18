@@ -1,0 +1,166 @@
+<svg viewBox="0 0 1240 620" width="1240" height="620" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-label="SSD 测试失败 AI 分析系统总体架构图" font-family="'Outfit','PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2f6f5e"/>
+    </marker>
+    <marker id="arM" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#c0bdb2"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="620" fill="#ffffff"/>
+
+  <!-- ===== 通知与反馈层 ===== -->
+  <g>
+    <rect x="90" y="30" width="640" height="96" rx="13" fill="#ffffff" stroke="#e9e3d6"/>
+    <rect x="90" y="30" width="5" height="96" rx="2.5" fill="#2f6f5e"/>
+    <circle cx="126" cy="78" r="16" fill="rgba(47,111,94,.10)" stroke="#2f6f5e" stroke-width="1.2"/>
+    <text x="126" y="82" text-anchor="middle" font-size="11" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">N</text>
+    <text x="156" y="66" font-size="16" font-weight="600" fill="#14171e">通知与反馈</text>
+    <text x="156" y="88" font-size="12.6" fill="#7c7a72">钉钉机器人卡片 · 钉钉工作通知 · P0–P3 分级路由 · 指纹级聚合去重</text>
+    <text x="156" y="106" font-size="12.6" fill="#7c7a72">一键采纳 / 纠正 / 驳回 · 反馈直接回流驱动进化</text>
+  </g>
+
+  <!-- ===== 进化层 ===== -->
+  <g>
+    <rect x="90" y="148" width="640" height="88" rx="13" fill="#ffffff" stroke="#2f6f5e" stroke-width="1.4"/>
+    <rect x="90" y="148" width="5" height="88" rx="2.5" fill="#2f6f5e"/>
+    <circle cx="126" cy="192" r="16" fill="rgba(47,111,94,.10)" stroke="#2f6f5e" stroke-width="1.2"/>
+    <text x="126" y="196" text-anchor="middle" font-size="11" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">E</text>
+    <text x="156" y="172" font-size="16" font-weight="600" fill="#14171e">自进化层</text>
+    <text x="156" y="191" font-size="12.6" fill="#7c7a72">结论采纳即成为训练信号，三条通道同时进化</text>
+    <g>
+      <rect x="102" y="198" width="200" height="30" rx="8" fill="rgba(47,111,94,.07)" stroke="rgba(47,111,94,.26)"/>
+      <text x="114" y="217" font-size="12.2" font-weight="600" fill="#2f6f5e">规则蒸馏</text>
+      <text x="186" y="217" font-size="11.2" fill="#7c7a72">零 LLM 快路径</text>
+      <rect x="312" y="198" width="200" height="30" rx="8" fill="rgba(47,111,94,.07)" stroke="rgba(47,111,94,.26)"/>
+      <text x="324" y="217" font-size="12.2" font-weight="600" fill="#2f6f5e">策略 Bandit</text>
+      <text x="412" y="217" font-size="11.2" fill="#7c7a72">求解链在线择优</text>
+      <rect x="522" y="198" width="196" height="30" rx="8" fill="rgba(47,111,94,.07)" stroke="rgba(47,111,94,.26)"/>
+      <text x="534" y="217" font-size="12.2" font-weight="600" fill="#2f6f5e">测试资产反推</text>
+      <text x="632" y="217" font-size="11.2" fill="#7c7a72">回归用例</text>
+    </g>
+  </g>
+
+  <!-- ===== 归因推理层 ===== -->
+  <g>
+    <rect x="90" y="258" width="640" height="160" rx="13" fill="#ffffff" stroke="#2f6f5e" stroke-width="1.4"/>
+    <rect x="90" y="258" width="5" height="160" rx="2.5" fill="#2f6f5e"/>
+    <circle cx="126" cy="300" r="16" fill="rgba(47,111,94,.10)" stroke="#2f6f5e" stroke-width="1.2"/>
+    <text x="126" y="304" text-anchor="middle" font-size="11" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">A</text>
+    <text x="156" y="292" font-size="16" font-weight="600" fill="#14171e">AI 归因推理</text>
+    <text x="156" y="312" font-size="12.6" fill="#7c7a72">多求解器仲裁 · 证据链推理 · 置信度校准 · 责任域分级（L0 环境 → L5 器件）</text>
+    <g>
+      <rect x="102" y="326" width="148" height="76" rx="10" fill="rgba(47,111,94,.08)" stroke="rgba(47,111,94,.28)"/>
+      <text x="114" y="345" font-size="10.5" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">M1</text>
+      <text x="114" y="364" font-size="12.6" font-weight="600" fill="#14171e">双层指纹</text>
+      <text x="114" y="381" font-size="11" fill="#7c7a72">症状签名 ×</text>
+      <text x="114" y="395" font-size="11" fill="#7c7a72">环境向量</text>
+
+      <rect x="262" y="326" width="148" height="76" rx="10" fill="rgba(47,111,94,.08)" stroke="rgba(47,111,94,.28)"/>
+      <text x="274" y="345" font-size="10.5" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">M2</text>
+      <text x="274" y="364" font-size="12.6" font-weight="600" fill="#14171e">对照归因</text>
+      <text x="274" y="381" font-size="11" fill="#7c7a72">DUT×环境</text>
+      <text x="274" y="395" font-size="11" fill="#7c7a72">反事实网格</text>
+
+      <rect x="422" y="326" width="148" height="76" rx="10" fill="rgba(47,111,94,.08)" stroke="rgba(47,111,94,.28)"/>
+      <text x="434" y="345" font-size="10.5" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">M3</text>
+      <text x="434" y="364" font-size="12.6" font-weight="600" fill="#14171e">因果边界</text>
+      <text x="434" y="381" font-size="11" fill="#7c7a72">首个不可恢复</text>
+      <text x="434" y="395" font-size="11" fill="#7c7a72">事件为起点</text>
+
+      <rect x="582" y="326" width="136" height="76" rx="10" fill="rgba(47,111,94,.08)" stroke="rgba(47,111,94,.28)"/>
+      <text x="594" y="345" font-size="10.5" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">M4</text>
+      <text x="594" y="364" font-size="12.6" font-weight="600" fill="#14171e">复现确证</text>
+      <text x="594" y="381" font-size="11" fill="#7c7a72">配方 → 真机</text>
+      <text x="594" y="395" font-size="11" fill="#7c7a72">→ 签名匹配</text>
+    </g>
+  </g>
+
+  <!-- ===== 接入与证据层 ===== -->
+  <g>
+    <rect x="90" y="440" width="640" height="68" rx="13" fill="#ffffff" stroke="#e9e3d6"/>
+    <rect x="90" y="440" width="5" height="68" rx="2.5" fill="#2f6f5e"/>
+    <circle cx="126" cy="474" r="16" fill="rgba(47,111,94,.10)" stroke="#2f6f5e" stroke-width="1.2"/>
+    <text x="126" y="478" text-anchor="middle" font-size="11" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">D</text>
+    <text x="156" y="466" font-size="16" font-weight="600" fill="#14171e">数据接入与证据加工</text>
+    <text x="156" y="488" font-size="12.6" fill="#7c7a72">失败事件推送 · 日志 / 拓扑 / 环境采集 · 多源解析 · 分层压缩</text>
+  </g>
+
+  <!-- ===== 现有测试平台 ===== -->
+  <g>
+    <rect x="90" y="530" width="640" height="60" rx="13" fill="#fbfaf7" stroke="#e9e3d6" stroke-dasharray="5 4"/>
+    <rect x="90" y="530" width="5" height="60" rx="2.5" fill="#c0bdb2"/>
+    <circle cx="126" cy="560" r="16" fill="#f1efe8" stroke="#c0bdb2" stroke-width="1.2"/>
+    <text x="126" y="564" text-anchor="middle" font-size="11" fill="#7c7a72" font-family="'JetBrains Mono',monospace">P</text>
+    <text x="156" y="554" font-size="15" font-weight="600" fill="#3a4256">现有测试平台</text>
+    <text x="156" y="574" font-size="12.2" fill="#7c7a72">测试执行 · 结果展示 · 拓扑与批次元数据（需新增暴露）</text>
+  </g>
+
+  <!-- ===== 知识资产库 ===== -->
+  <g>
+    <rect x="830" y="148" width="360" height="360" rx="15" fill="#ffffff" stroke="#2f6f5e" stroke-width="1.4"/>
+    <text x="854" y="180" font-size="16" font-weight="600" fill="#14171e">知识资产库</text>
+    <text x="854" y="199" font-size="10.5" fill="#2f6f5e" font-family="'JetBrains Mono',monospace">KNOWLEDGE ASSET STORE</text>
+    <line x1="854" y1="214" x2="1166" y2="214" stroke="#e9e3d6"/>
+    <g>
+      <rect x="854" y="228" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="245" font-size="13" font-weight="600" fill="#14171e">失效模式卡</text>
+      <text x="868" y="261" font-size="10.8" fill="#7c7a72">症状指纹 · 确认根因 · 处置手册</text>
+      <text x="1152" y="245" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">FMC</text>
+
+      <rect x="854" y="274" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="291" font-size="13" font-weight="600" fill="#14171e">检测规则库</text>
+      <text x="868" y="307" font-size="10.8" fill="#7c7a72">确认结论蒸馏 · 零 LLM 快路径</text>
+      <text x="1152" y="291" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">RULE</text>
+
+      <rect x="854" y="320" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="337" font-size="13" font-weight="600" fill="#14171e">复现配方库</text>
+      <text x="868" y="353" font-size="10.8" fill="#7c7a72">结构化 YAML · 影子真机可执行</text>
+      <text x="1152" y="337" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">RC</text>
+
+      <rect x="854" y="366" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="383" font-size="13" font-weight="600" fill="#14171e">因果先验图</text>
+      <text x="868" y="399" font-size="10.8" fill="#7c7a72">级联边 · 非缺陷超时边</text>
+      <text x="1152" y="383" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">GRAPH</text>
+
+      <rect x="854" y="412" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="429" font-size="13" font-weight="600" fill="#14171e">回归用例集</text>
+      <text x="868" y="445" font-size="10.8" fill="#7c7a72">反向生成 · PR 评审 · 防逃逸</text>
+      <text x="1152" y="429" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">REG</text>
+
+      <rect x="854" y="458" width="312" height="40" rx="9" fill="#fbfaf7" stroke="#e9e3d6"/>
+      <text x="868" y="475" font-size="13" font-weight="600" fill="#14171e">向量索引</text>
+      <text x="868" y="491" font-size="10.8" fill="#7c7a72">案例 / 证据 / 卡片统一检索</text>
+      <text x="1152" y="475" text-anchor="end" font-size="9.8" fill="#7c7a72" font-family="'JetBrains Mono',monospace">VEC</text>
+    </g>
+  </g>
+
+  <!-- ===== 主干向上流 ===== -->
+  <g stroke="#2f6f5e" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+    <line x1="410" y1="530" x2="410" y2="514"/>
+    <line x1="410" y1="440" x2="410" y2="424"/>
+    <line x1="410" y1="258" x2="410" y2="242"/>
+    <line x1="410" y1="148" x2="410" y2="132"/>
+  </g>
+
+  <!-- ===== 右侧回流 ===== -->
+  <g stroke="#2f6f5e" stroke-width="1.5" fill="none">
+    <line x1="730" y1="72" x2="824" y2="72" marker-end="url(#ar)"/>
+    <line x1="830" y1="192" x2="736" y2="192" marker-end="url(#ar)"/>
+    <line x1="730" y1="320" x2="824" y2="320" marker-end="url(#ar)"/>
+    <line x1="830" y1="390" x2="736" y2="390" marker-end="url(#ar)"/>
+  </g>
+  <g font-size="10.8" fill="#7c7a72" text-anchor="middle">
+    <text x="780" y="64">人工反馈</text>
+    <text x="782" y="184">资产与信号</text>
+    <text x="780" y="312">结论沉淀</text>
+    <text x="780" y="382">检索复用</text>
+  </g>
+
+  <!-- ===== 复现回路 ===== -->
+  <path d="M 90 330 L 46 330 L 46 474 L 84 474" fill="none" stroke="#c0bdb2"
+        stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arM)"/>
+  <text x="36" y="404" transform="rotate(-90 36 404)" text-anchor="middle" font-size="10.8" fill="#7c7a72">复现回路</text>
+</svg>

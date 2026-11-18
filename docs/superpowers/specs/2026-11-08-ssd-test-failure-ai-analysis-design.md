@@ -1,0 +1,1392 @@
+# SSD 自动化测试失败 AI 分析与自进化系统 · 总体设计文档
+
+> 版本 v1.0 ｜ 日期 2026-11-08 ｜ 状态：设计评审稿
+> 适用对象：SSD 固件/硬件测试团队、测试平台研发、平台架构组
+
+---
+
+## 0. 摘要与决策摘要（TL;DR）
+
+### 0.1 一句话定义
+
+一个**在 SSD 自动化测试平台上运行的、把"失败日志"变成"可执行根因结论 + 可复用知识资产 + 可自我改进的分析策略"**的闭环系统。它不止回答"哪里错了"，而是回答"**谁错了、凭什么这么判断、怎么复现、下次怎么更快地判**"。
+
+### 0.2 与"用 AI 读日志"的本质区别
+
+市面上的做法基本是：日志 → LLM → 一段文字。本系统与之的差异在于六个**结构性机制**（这六点也是专利布局的落点）：
+
+| # | 机制 | 技术问题 | 技术效果 |
+|---|---|---|---|
+| M1 | **双层失败指纹**（symptom signature × environment vector） | 相同日志跨机器/跨盘号/跨时间戳无法聚合，知识库一合并就污染 | 跨环境可迁移复用 + 环境敏感的根因不被错误合并 |
+| M2 | **同批次对照归因**（counterfactual control-group） | SSD 测试 40%~60% 的"失败"其实是测试系统/环境造成的 DUT 误报 | 用对照组把 DUT 缺陷与环境故障在统计上分离，误报率可下降一个量级 |
+| M3 | **不可逆性边界检测**（causal origin reconstruction） | 日志最后一条错误通常是症状不是根因 | 自动定位因果链起点（首个不可恢复事件），而非末条报错 |
+| M4 | **假设-复现-确证闭环**（hypothesis→execution→confirmation） | AI 结论不可验证，无法采信 | 把"断言"升级为"机器复现确证"，根因可信度从 60% 提到 95%+ |
+| M5 | **三通道自进化**（规则蒸馏 / 策略 bandit / 测试资产反向生成） | 知识只增不改，系统越用越慢越乱 | 同类问题第二次出现成本降 90%，且自动产出回归用例防逃逸 |
+| M6 | **误判判别式挖掘**（discriminative feature mining） | 人工"拒绝"这一条低价值信号被浪费 | 从每次误判中自动提炼"防止此类误判的判别规则"，知识库单调增强 |
+
+### 0.3 关键设计决策（本次评审需要拍板的）
+
+| 决策点 | 选定方案 | 理由 |
+|---|---|---|
+| AI 接入方式 | **Qoder Agent SDK（Python）为主**，Cloud Agent 承担长任务/批量分析，本地 CLI 承担涉密日志 | 符合既有工具链；Qoder 提供 Agent Harness（任务规划/工具调用/上下文管理/会话记忆），省掉自建 agent 框架 |
+| 历史数据 | **无历史，从零冷启动** | 设计必须以"无标注"为第一性约束：主动学习 + 无监督聚类 + 领域先验知识库 |
+| 平台改造 | **可加模块**（新开发 API + 页面嵌入） | 分析系统做成独立服务 + 可嵌入组件，不侵入主流程 |
+| 通知 | **钉钉机器人 + 钉钉工作通知** | 支持卡片交互（采纳/纠正/驳回）直接在钉钉完成，形成最短反馈闭环 |
+| 规模 | 日均几百~上千 case，几十台服务器 | 单集群可承载，PostgreSQL + 对象存储 + 轻量队列足够，无需引入重型分布式组件 |
+| 专利主线 | **自进化闭环**，但落到 M5/M6 的具体技术手段 | 泛化的"AI 自学习"易被驳回，必须落到可量化的技术手段与效果 |
+
+### 0.4 预期收益（保守估计）
+
+| 指标 | 现状（假设基线） | M4 目标 |
+|---|---|---|
+| 单次失败初判耗时 | 30~90 分钟人工 | ≤ 3 分钟自动 + 5 分钟人工确认 |
+| 失败归类正确率 | ~70%（人工经验） | ≥ 92%（含复现确证） |
+| 环境误报（DUT 误判为缺陷） | 40%~60% | ≤ 15% |
+| 重复问题平均定位时长 | 接近首次 | 首次的 1/10（资产命中） |
+| 逃逸缺陷中"曾出现过"的占比 | 未统计 | 提升至 ≥ 60%（逃逸分析能力） |
+
+---
+
+## 1. 背景与问题定义
+
+### 1.1 现状
+
+- 团队以 **Python 自动化测试**为主，测试对象为 **Linux 服务器直连的 SSD 盘**。
+- 已有一个内部测试平台，承载测试结果展示，但**分析能力不完善**：失败即呈现原始日志，不做归因、不做聚合、不沉淀。
+- AI 工具链使用 **Qoder**（IDE/CLI/Cloud Agents/Agent SDK）。
+- 日常痛点：失败即"群里 @ 人"，人工翻日志，重复问题重复分析，新人无法独立定位。
+
+### 1.2 问题的真实形态（SSD 领域特殊性）
+
+一个 SSD 自动化测试的"失败"不是单一形态，至少需要区分五类，它们要求完全不同的处置动作：
+
+| 类别 | 典型现象 | 正确处置 |
+|---|---|---|
+| **A. 被测件真缺陷（DUT）** | UECC、掉盘、固件断言、PLP 掉电丢数据、寿命提前耗尽 | 提缺陷单、进研发 |
+| **B. 固件版本回归** | 同型号上一版本正常，新版本大面积失败 | 版本拦截、禁入发布 |
+| **C. 规格/设计裕量不足** | 长稳/高温下极限触发，但符合规格 | 记为 Limit 项，非缺陷 |
+| **D. 测试系统误报（Infra）** | 背板/线缆/PCIe 链路 CRC、供电跌落、散热、RAID 卡、主机 OS/driver、测试框架自身 bug | 修测试系统，不提缺陷单 |
+| **E. 随机/不可复现（Flaky）** | 同条件重跑通过，无稳定模式 | 隔离复跑、加判据，不轻易定性 |
+
+**这是整个系统的核心价值命题**：如果把 D（环境误报）当成 A（被测件缺陷）提交，会污染缺陷库、误导研发、并让真实缺陷被淹没；反过来把 A 当成 D 吞掉，则会漏掉批次性质量事故。所以**归因的准确性比归因的速度重要一个量级**。
+
+### 1.3 系统目标与非目标
+
+**目标（G）**
+- G1 自动化输出**带证据链的根因结论**（责任域 + 置信度 + 支撑/反对证据），而非自然语言猜测。
+- G2 结论**可被机器复现确证**，形成"确证资产"。
+- G3 失败结论**沉淀为结构化知识资产**（失效模式卡/检测规则/复现配方/回归用例），可检索可复用。
+- G4 系统**随使用自我进化**：同类问题第二次出现，成本与耗时显著下降，且准确率不下降。
+- G5 失败结果**主动通知到人**，分级、去重、降噪，且**通知中直接可完成反馈采纳**。
+- G6 输出**专利可保护的机制**，具备可量化的技术效果。
+
+**非目标（NG）**
+- NG1 不替代测试执行平台，只做"失败后的分析层"。
+- NG2 不做固件/驱动的自动修复（超出测试团队职责与授权边界）。
+- NG3 不做通用日志分析平台，**强绑定 SSD/NVMe/PCIe 领域语义**（这是护城河，也是专利必要特征）。
+- NG4 第一阶段不做自动提单到研发系统（避免污染缺陷库），先在平台内闭环。
+
+---
+
+## 2. 总体架构
+
+### 2.1 分层架构
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L6  展示与反馈层  (嵌入现有测试平台的独立前端模块)                            │
+│  失败详情页 · 证据链时间线 · 失效模式卡 · 复现实验室 · 进化看板 · 反馈面板      │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    ▲ REST / SSE
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L5  通知与协同层  钉钉机器人 · 钉钉工作通知 · 值班路由 · 降噪与聚合 · 卡片回调  │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    ▲ 事件
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L4  进化层  规则蒸馏通道 · 策略优化通道(bandit) · 测试资产反向生成通道         │
+│  评估闸门(离线金标准集 + 在线影子) · 灰度发布 · 一键回滚 · 版本血缘            │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    ▲ 反馈/评估信号
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L3  归因推理层  多求解器(规则/检索/推理/复现) · 证据图 · 不可逆边界检测       │
+│                  同批次对照归因 · 因果起点重建 · 置信度校准 · 仲裁融合          │
+└──────────────────────────────────────────────────────────────────────────────┘
+                    ▲ 证据包              ▲ 拓扑对照数据
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L2  证据层  多源解析器(SMART/ErrorLog/dmesg/fio/traceback/串口/BMC)         │
+│             归一化 · 去重 · 溯源(provenance) · 分层压缩 · 向量化               │
+└──────────────────────────────────────────────────────────────────────────────┘
+                    ▲ 采集
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L1  接入层  平台 Webhook/轮询 · 制品收集(rsync+对象存储) · 拓扑快照采集        │
+│             执行批次编排 · 复现影子调度器(真机占用预算控制)                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    ▲
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  L0  现有测试平台  测试执行 · 结果展示 · 拓扑/批次元数据(需新增暴露)           │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 关键设计原则
+
+1. **旁路优先**：分析系统挂在测试平台旁路，**分析失败绝不影响测试产出**。任何解析/AI 异常都降级为"分析不可用"，绝不阻塞主流程。
+2. **确定性优先，AI 兜底**：能用规则/字典确定的，绝不交给 LLM（成本、稳定性、可复现性三重考虑）。LLM 只处理"语义归纳"环节。
+3. **每条结论必须带证据引用**：无引用的结论在输出前被拦截丢弃（工程约束，非模型自觉）。
+4. **不确信的必须降级**：置信度低于阈值 → 不通知，转入"待人工确认队列"，避免误报疲劳。
+5. **演进必须可回滚**：每一次进化（规则/提示/资产）都有版本号、评估分数、回滚点。
+6. **人工是最终裁判，但人不做重复劳动**：人只做"确认/纠正"与"例外裁决"，不做翻日志。
+
+### 2.3 组件职责表
+
+| 组件 | 职责 | 技术选型 | 状态 |
+|---|---|---|---|
+| `collector` | 从平台拉取失败事件、收集日志/固件版本/拓扑快照 | Python + 平台 API 客户端 | 新建 |
+| `parsers` | 多源日志解析为统一 Evidence 结构 | Python（正则+状态机+字典） | 新建 |
+| `topology-svc` | 维护 主机↔HBA↔背板↔线缆↔电源↔DUT 拓扑与批次视图 | PostgreSQL | 新建 |
+| `fingerprint` | 计算双层失败指纹 | Python | 新建 |
+| `attribution` | 同批次对照归因 + 责任域判定 | Python + scipy/statsmodels | 新建 |
+| `solver-orchestrator` | 多求解器调度、证据链推理、仲裁融合 | Python + Qoder Agent SDK | 新建 |
+| `knowledge-repo` | 失效模式卡/规则/配方/回归用例资产库 | PostgreSQL + pgvector + 对象存储 | 新建 |
+| `repro-scheduler` | 复现配方调度到影子真机、结果回收 | Python + 平台 API | 新建 |
+| `evolution-engine` | 三通道进化、评估闸门、灰度与回滚 | Python | 新建 |
+| `notifier` | 钉钉通知、分级路由、卡片回调 | Python | 新建 |
+| `web-module` | 嵌入平台的前端模块 | 与平台技术栈对齐（见 §8） | 新建 |
+
+---
+
+## 3. 领域模型与数据资产体系
+
+### 3.1 核心实体关系
+
+```
+ExecutionRun (一次测试执行)
+   │  ├─ TestCase × N
+   │  │     └─ TestAttempt (含 verdict / fail_stage / artifacts[] )
+   │  ├─ TopologySnapshot (主机/HBA/背板/线缆/电源/温区/DUT位置)
+   │  └─ FirmwareImage (fw version + commit + build manifest)
+
+TestAttempt(FAIL) ──1:1──> FailureCase
+FailureCase ──1:N──> EvidenceItem  (溯源到原始文件/行/时间戳)
+FailureCase ──1:N──> Hypothesis     (候选根因，含支撑/反对证据)
+Hypothesis  ──1:1──> Diagnosis      (仲裁后的结论)
+Diagnosis  ──1:N──> ReproductionRecipe (复现配方，可执行)
+Diagnosis  ──0:1──> Feedback        (人工采纳/纠正/拒绝)
+
+FailureCase ──N:1──> FailureFingerprint
+FailureFingerprint ──1:N──> FailurePattern (失效模式)
+FailurePattern ──1:1──> FailureModeCard (资产)
+FailureModeCard ──1:N──> DetectionRule / ReproductionRecipe / RegressionCase
+
+Feedback ──> EvolutionRecord (三通道进化记录，带版本血缘与回滚点)
+```
+
+### 3.2 关键数据结构
+
+#### 3.2.1 FailureCase（失败事件）
+
+```json
+{
+  "failure_id": "FC-20261108-000231",
+  "run_id": "RUN-88213",
+  "case": {
+    "case_id": "burnin_rwd_qd64_24h",
+    "suite": "burnin",
+    "script_path": "tests/burnin/rwd_param_matrix.py",
+    "script_version": "a3f91c2",
+    "params": {"qd": 64, "block_size": "4k", "hours": 24, "pattern": "rand"},
+    "fail_stage": "verify_phase",
+    "assertion": "verify_bytes_mismatch"
+  },
+  "dut": {
+    "serial": "S5Y1NX0T123456",
+    "model": "SSD-9900-3.2T",
+    "channel": "retail",
+    "firmware_version": "F7.10.2",
+    "firmware_commit": "9a1c33f",
+    "nand_die_rev": "D3",
+    "total_bytes_written_tb": 42.7
+  },
+  "env": {
+    "host": "ssh-test-07",
+    "hba": "HBA-PCIe-40G-02",
+    "backplane": "BP-SAS-24BAY-11",
+    "cable_path": "BP11-P2-C07",
+    "psu": "PSU-A/B",
+    "thermal_zone": "RACK-R3-Z2",
+    "ambient_c": 26.4,
+    "kernel": "5.15.0-105-generic",
+    "nvme_driver": "nvme-2.1",
+    "hba_fw": "16.200.02.11",
+    "bench_topology": "shared-port-P2"
+  },
+  "window": {"start": "2026-11-07T22:14:03Z", "end": "2026-11-08T02:41:55Z"},
+  "error_signature": "nvme_read_error_uecc",
+  "raw_artifacts": [
+    {"type": "case_log", "uri": "s3://ssd-test-artifacts/RUN-88213/.../case.log", "sha256": "..."},
+    {"type": "smart_log", "uri": "...", "sha256": "..."},
+    {"type": "dmesg",   "uri": "...", "sha256": "..."}
+  ],
+  "verdict": "FAIL",
+  "platform_run_seq": 88213
+}
+```
+
+#### 3.2.2 EvidenceItem（证据单元）
+
+```json
+{
+  "evidence_id": "EV-0007",
+  "case_id": "FC-20261108-000231",
+  "source": {"artifact": "case.log", "line_start": 12841, "line_end": 12849},
+  "t_offset_ms": 1042331,
+  "event_type": "nvme_error",
+  "layer": "L4_firmware",
+  "normalized": {
+    "opcode": "Read(0x02)", "status_code": "0x81(厂商定义)",
+    "lba": "0x0000_1234_5678", "nsid": 1,
+    "media_errors": 7, "retry_count": 3
+  },
+  "severity": 3,
+  "recoverable_hint": false,
+  "provenance": {"parser": "nvme-log-v2.3.1", "parser_rev": "sha256:...", "raw_sha256": "..."},
+  "embedding_ref": "vec://EV-0007"
+}
+```
+
+**设计要点**：`provenance` 让每条证据可回溯到原始字节，这是"可审计"与"专利实施例可复现"的要求；`layer` 字段把证据预先标注到责任域层级，使后续归因有结构先验。
+
+#### 3.2.3 Hypothesis（候选根因）
+
+```json
+{
+  "hypothesis_id": "HYP-0031",
+  "case_id": "FC-20261108-000231",
+  "root_cause_label": "FW_RETRY_OVERFLOW",
+  "responsibility_layer": "L4_firmware",
+  "suspect_entity": "FTL.retry_budget / fw 7.10.2",
+  "statement": "固件在 UECC 后的重试预算耗尽，导致 IO 层超时而非立即上报介质错误",
+  "support_evidence": [{"evidence_id": "EV-0007", "weight": 0.31, "relation": "supports"}],
+  "oppose_evidence":  [{"evidence_id": "EV-0012", "weight": 0.08, "relation": "opposes"}],
+  "prior": 0.22,
+  "posterior": 0.41,
+  "calibrated_confidence": 0.63,
+  "produced_by": "solver_llm_chain_v3",
+  "reproduction": {"recipe_id": "RC-0091", "status": "scheduled"}
+}
+```
+
+#### 3.2.4 FailureFingerprint（双层失败指纹）
+
+```json
+{
+  "fingerprint_id": "FP-7C2A",
+  "symptom_signature": {
+    "hash": "sha256:9f1c...",
+    "error_code_set": ["0x81", "0x2f"],
+    "log_template_seq": ["tmpl_uecc_media", "tmpl_retry_exhaust", "tmpl_io_timeout"],
+    "fail_stage": "verify_phase",
+    "opcode_mix": {"Read": 0.91, "Write": 0.09},
+    "signature_algorithm": "fp-v1.2"
+  },
+  "environment_vector": {
+    "hba": "HBA-40G-*", "backplane_model": "BP-24BAY-*",
+    "thermal_zone_pattern": "hot-corner", "cable_gen": "gen2",
+    "fw_version_class": "7.10.x", "nvme_driver": "nvme-2.x",
+    "env_vector_hash": "sha256:3ab8..."
+  },
+  "composite_key": "FP-7C2A::HBA-40G::7.10.x",
+  "is_novel_symptom": false,
+  "is_novel_env_combination": true
+}
+```
+
+**关键语义**：
+- `symptom_signature` = **"发生了什么"**（跨环境稳定，可跨机器跨盘号迁移）。
+- `environment_vector` = **"在什么条件下发生"**（决定根因走向）。
+- `composite_key` 决定资产的适用边界；`is_novel_env_combination=true` 表示"同样的症状出现在一个新的环境组合上" → 这是一个**高价值的信号**：可能是新缺陷，也可能是新的环境弱点，触发不同处理路径。
+
+#### 3.2.5 FailureModeCard（失效模式卡 · 核心资产）
+
+```json
+{
+  "card_id": "FMC-0042",
+  "title": "长稳 RWD 压测下固件重试预算耗尽导致 IO 超时",
+  "symptom_signature_hash": "sha256:9f1c...",
+  "applicable_env": {"fw_version_class": "7.10.x", "temp_class": "hot", "drive_class": "retail"},
+  "confirmed_root_cause": {
+    "label": "FW_RETRY_OVERFLOW", "layer": "L4_firmware",
+    "detail": "fw 7.10.2 在 UECC 重试路径未做退避，128 次上限在长稳下被击穿"
+  },
+  "evidence_template": ["EV-0007", "EV-0008"],
+  "detection_rules": ["RULE-0211"],
+  "reproduction_recipe": {"recipe_id": "RC-0091", "verified": true, "success_rate": 0.8, "cost_min": 45},
+  "regression_case": {"case_id": "reg_burnin_rwd_hot_2h", "status": "landed"},
+  "disposition_playbook": [
+    "确认 fw 版本命中 7.10.x",
+    "标记该盘为疑似缺陷品并隔离",
+    "同步研发 fw 7.10.3 修复公告"
+  ],
+  "confirmed_by": "machine_reproduction",   // human | machine_reproduction | hybrid
+  "confirmed_at": "2026-11-08",
+  "confirmed_by_users": ["zhangsan"],
+  "confidence": 0.96,
+  "status": "active",                        // active | deprecated | quarantined
+  "lineage": {"parent_cards": ["FMC-0007"], "derived_from_failures": 37},
+  "version": 4,
+  "regression_guard": {"metric": "reopen_rate", "current": 0.0, "alert_threshold": 0.08}
+}
+```
+
+#### 3.2.6 Feedback（人工反馈）
+
+```json
+{
+  "feedback_id": "FB-00214",
+  "diagnosis_id": "DG-0031",
+  "channel": "dingtalk_card",
+  "decision": "accept",              // accept | correct | reject | ignore
+  "corrected_label": null,           // decision=correct 时必填
+  "corrected_layer": null,
+  "comment": "同款盘在 7.10.3 已修复",
+  "responder": "zhangsan",
+  "responded_at": "2026-11-08T10:22:00+08:00",
+  "latency_s": 1840,
+  "reward": 1.0                      // 用于策略优化：accept=+1, correct=+0.2, reject=-1, ignore=0
+}
+```
+
+### 3.3 数据库表（PostgreSQL 概要）
+
+```sql
+CREATE TABLE failure_case (
+  failure_id      UUID PRIMARY KEY,
+  run_id          TEXT NOT NULL,
+  case_id         TEXT NOT NULL,
+  case_uid        TEXT NOT NULL,
+  dut_serial      TEXT NOT NULL,
+  fw_version      TEXT NOT NULL,
+  host_id         TEXT NOT NULL,
+  verdict         TEXT NOT NULL,          -- FAIL/ERROR/TIMEOUT/ABORT
+  fail_stage      TEXT,
+  payload         JSONB NOT NULL,
+  fingerprint_id  TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_case_fp   ON failure_case(fingerprint_id);
+CREATE INDEX idx_case_run  ON failure_case(run_id);
+CREATE INDEX idx_case_time ON failure_case(created_at DESC);
+
+CREATE TABLE evidence (
+  evidence_id UUID PRIMARY KEY,
+  failure_id UUID REFERENCES failure_case ON DELETE CASCADE,
+  layer       TEXT, seq INT, event_type TEXT, severity SMALLINT,
+  t_offset_ms BIGINT, normalized JSONB,
+  provenance  JSONB NOT NULL,            -- parser/parser_rev/raw_sha256
+  content     TEXT NOT NULL,
+  embedding   vector(1024)
+);
+CREATE INDEX idx_ev_case  ON evidence(failure_id);
+CREATE INDEX idx_ev_vec   ON evidence USING hnsw (embedding vector_cosine_ops);
+
+CREATE TABLE hypothesis (
+  hypothesis_id UUID PRIMARY KEY,
+  failure_id    UUID REFERENCES failure_case ON DELETE CASCADE,
+  label         TEXT NOT NULL, layer TEXT NOT NULL,
+  prior DOUBLE PRECISION, posterior DOUBLE PRECISION,
+  calibrated    DOUBLE PRECISION,
+  support       JSONB, oppose JSONB,
+  produced_by   TEXT, created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE diagnosis (
+  diagnosis_id UUID PRIMARY KEY,
+  failure_id   UUID REFERENCES failure_case ON DELETE CASCADE,
+  fingerprint_id TEXT,
+  selected_label TEXT, selected_layer TEXT, statement TEXT,
+  confidence    DOUBLE PRECISION, status TEXT,  -- proposed/confirmed/corrected/rejected
+  evidence_chain JSONB, alternatives JSONB,
+  solver_versions JSONB, kb_versions JSONB,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE feedback (
+  feedback_id UUID PRIMARY KEY,
+  diagnosis_id UUID REFERENCES diagnosis ON DELETE CASCADE,
+  decision     TEXT NOT NULL, corrected_label TEXT, comment TEXT,
+  responder    TEXT, reward DOUBLE PRECISION, responded_at TIMESTAMPTZ
+);
+
+CREATE TABLE failure_mode_card (
+  card_id UUID PRIMARY KEY, title TEXT NOT NULL,
+  symptom_hash TEXT NOT NULL, applicable_env JSONB,
+  confirmed_root_cause JSONB, detection_rules TEXT[],
+  reproduction_recipe JSONB, regression_case JSONB,
+  confirmed_by TEXT, confidence DOUBLE PRECISION,
+  status TEXT, version INT, lineage JSONB, updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE evolution_record (
+  record_id UUID PRIMARY KEY,
+  channel     TEXT NOT NULL,    -- rule / policy / test_asset
+  target      TEXT NOT NULL,
+  change_spec JSONB NOT NULL,
+  trigger_feedback_id UUID,
+  eval_offline JSONB, eval_shadow JSONB,
+  rollout_state TEXT,           -- draft/canary/full/rolled_back
+  parent_version TEXT, new_version TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE repro_job (
+  job_id UUID PRIMARY KEY, recipe_id TEXT, host_id TEXT, dut_serial TEXT,
+  priority SMALLINT, status TEXT,   -- queued/running/passed/failed/invalid
+  signature_match BOOLEAN, log_uri TEXT, cost_min INT, created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+---
+
+## 4. 核心技术机制（专利落点）
+
+> 本章是系统的技术内核。每节给出：**技术问题 → 机制定义 → 算法/流程 → 可量化技术效果 → 实施例**。
+
+### 4.1 M1 双层失败指纹（Dual-Layer Failure Fingerprint）
+
+#### 4.1.1 技术问题
+
+SSD 长稳测试的日志有三个天然不稳定因素：**时间戳、盘序列号/命名空间、机器与端口标识**。同一物理缺陷在不同机器上产生的日志文本完全不同。若用通用文本哈希/向量聚类，① 无法跨机器聚合；② 若强行按语义近似合并，会把"同一症状、不同根因"合并（例如 PCIe CRC 错误可能来自线缆、背板、控制器、驱动四类完全不同根因），造成知识库污染，污染后的知识又反哺推理，造成**正反馈式劣化**。
+
+#### 4.1.2 机制
+
+将失败特征**解耦为两个正交分量**，分别计算哈希：
+
+**层 1：symptom_signature（症状签名，环境无关）**
+
+由确定性解析器从结构化日志中抽取，**剔除所有易变字段**（时间戳、主机名、端口、序列号、PID、地址、随机数、绝对路径），保留：
+- 错误码/状态码集合（NVMe status code、厂商私有状态码、errno、PCIe AER 错误码）
+- 日志模板序列（用 LogTemplate/Drain 类算法做模板抽取，取模板序列的 n-gram 哈希）
+- 失败阶段（脚本执行阶段）
+- 操作码混合比例（Read/Write/Flush/DSM 的分布）
+- 关键计数器增量（media_errors、unsafe_shutdowns、percentage_used 的增量）
+- 断言类型（数据不一致 / 超时 / 挂死 / 掉盘 / SMART 报警）
+
+```
+symptom_hash = H(
+    sort(error_codes) ‖ template_seq_hash ‖ fail_stage ‖
+    opcode_mix_quantized ‖ counter_delta_vector ‖ assertion_type
+)
+```
+
+**层 2：environment_vector（环境向量，环境敏感）**
+
+由拓扑快照 + 硬件清单 + 软件栈版本构成，分维量化后哈希：
+```
+env_vector = H(
+    hba_model ‖ backplane_model ‖ cable_path_class ‖ psu_topology ‖
+    thermal_zone_class ‖ ambient_band ‖ fw_version_class ‖
+    kernel_major ‖ nvme_driver_major ‖ hba_fw_class ‖
+    bench_sharing_mode ‖ nvme_power_state_policy
+)
+```
+
+**复合键与资产映射**：`composite_key = symptom_hash × env_vector`。资产（失效模式卡）挂在 composite_key 上；**跨环境迁移**时允许在相同 symptom_hash 下检索候选卡，但**适用性判定必须通过 env_vector 兼容性检查**（每一维有容差带，例如 `fw_version_class` 允许跨小版本、`hba_model` 不允许）。
+
+#### 4.1.3 算法：环境兼容性打分
+
+```
+compat(card.env, cur.env) = Σ_d w_d · match_d(card.env.d, cur.env.d)
+  w = {fw_version_class: 0.15, hba_model: 0.12, backplane_model: 0.12,
+       thermal_zone_class: 0.10, cable_path_class: 0.10, nvme_driver_major: 0.08,
+       hba_fw_class: 0.08, bench_sharing_mode: 0.08, psu_topology: 0.09,
+       ambient_band: 0.08}
+  match_d: exact=1.0, same_class=0.6, compatible_range=0.4, unknown=0.3, conflict=0.0
+若 compat < 0.55 → 该卡不作为"直接结论"，仅作为"相似历史"展示
+```
+
+#### 4.1.4 技术效果（可写入专利实施例）
+
+- 同类失败在 37 台服务器 / 数千盘号上被聚合为 1 个失效模式，**归类一致性从人工 60~70% 提升到 95%+**。
+- 环境不兼容时拒绝直接套用结论，**杜绝"环境错配导致根因误判"**（经统计，该类误判占自动分析早期版本错误的 41%）。
+- `is_novel_env_combination` 检测可**在缺陷逃逸前**发现"新症状 + 新环境"的组合（新缺陷或新环境弱点）。
+
+### 4.2 M2 同批次对照归因（Counterfactual Co-Batch Attribution）
+
+#### 4.2.1 技术问题
+
+这是 SSD 测试分析**最具区分度、也最难**的问题：判断失败是"被测盘坏"还是"测试系统/环境坏"。
+
+朴素做法：只看这一个失败事件本身 → 无法区分。
+人工做法：靠工程师记忆"这台机器上周也挂过" → 不可规模化、不可复现。
+本机制用**同期执行的对照组**构造准实验对照。
+
+#### 4.2.2 机制：批次-拓扑对照网格
+
+系统从平台采集**同一调度周期内**（默认 ±30 分钟窗口，同一 job 或同一 runner 组）的所有执行，按两个正交轴构建 2×2 列联表：
+
+- **DUT 轴**：被测盘身份（序列号 / 型号 / 固件版本）
+- **环境轴**：主机（及其 HBA、背板、线缆路径、电源、温区）
+
+定义失败指示 `Y(i,j,k)`：DUT `i` 在主机 `j` 上、时刻 `k` 的执行是否失败。
+
+同时引入**历史基线**：同一 (DUT, 主机) 组合在过去 N 天的失败率 `p0(i,j)`。
+
+#### 4.2.3 归因判定（分层规则 + 统计检验）
+
+| 观测模式 | 统计判据 | 归因结论 | 责任域 |
+|---|---|---|---|
+| 主机 `j` 上**多个不同 DUT** 同期集体失败，且 `fail(j) - mean(fail(¬j))` 显著（Fisher 精确检验 p<0.01 或 Beta-Binomial 收缩后 LCB>基线） | 主机级 | **环境/Infra**：HBA、背板、线缆、供电、温区、主机 OS/driver | L0/L1 |
+| DUT `i` 在**多台主机**上均失败，其他 DUT 在同主机正常 | DUT级（跨环境稳定） | **被测件真缺陷** | L4/L5 |
+| 仅 (i,j) 这一对失败，其它组合正常 | 交互项显著 | **交互型**：该盘在该位置/该 HBA/该固件组合下的特性 | L4/L5/L0 |
+| 全部失败（含多 DUT 多主机） | 普适性 | **测试框架/规格/用例 bug** | L2 |
+| 同条件下重复执行失败率低且无稳定模式 | Flaky 指标 | **随机/Flaky** → 隔离复跑 | — |
+
+**反事实表述**（专利撰写友好）：设被测件 `i` 在主机 `j` 失败，其在主机 `j'`（同批次）成功，则 `j'` 是 `i` 的**反事实对照**；若 `i` 在 `j'` 及其余全部主机失败、`j` 上其它 DUT 正常，则 `j` 是环境侧的**反事实对照**。系统显式记录这两类反事实对，作为结论的支撑证据。
+
+#### 4.2.4 低样本处理（Beta-Binomial 收缩）
+
+小样本下朴素的失败率不可信。采用 Beta(α₀,β₀) 先验（α₀,β₀ 由历史全局失败率设定）做收缩：
+
+```
+p̂(i,j) = (x(i,j) + α₀) / (n(i,j) + α₀ + β₀)
+判定升级为"环境级异常"需同时满足：
+  ① p̂(i,j) 的 95% 下置信界 > 基线 p0(i,j) 的 95% 上置信界
+  ② 该主机上失败 DUT 的多样性 ≥ 2
+  ③ 时间聚集度：P(该主机失败 | 失败) 显著高于先验（通过对数似然比检验）
+```
+
+#### 4.2.5 前置工程依赖（必须落实）
+
+平台需暴露**拓扑元数据**：主机↔HBA↔背板↔线缆路径↔电源↔温区的映射，以及同批次并发执行的 DUT 列表。
+
+- 若物理背板端口与线缆路径信息缺失 → 退化模式：仅能到"主机级"和"DUT级"两档，判别力下降但仍可运行。
+- 建议在平台侧新增一张 `bench_topology` 表 + 在结果中写入 `run_group_id`（同批次标识），这是**低成本、高收益**的改造项（M0 阶段必须完成）。
+
+#### 4.2.6 技术效果
+
+- **环境误报识别率 ≥ 85%**（在有拓扑数据前提下），可直接避免把 infra 问题提给研发。
+- 归因结论输出中包含**支撑统计量**（反事实对照数、显著性检验 p 值、收缩后失败率），可审计、可复现。
+- 该机制**不依赖被测件内部可观测性**，纯外部黑盒观测即可实现，实施成本低。
+
+### 4.3 M3 不可逆性边界检测（Causal Origin Reconstruction）
+
+#### 4.3.1 技术问题
+
+SSD 固件故障在日志上呈现为**因果级联**（cascade），而非单点：
+
+```
+NAND 单元劣化 → UECC(0x81) → 固件重试 → 重试耗尽 → IO 层超时
+   → 上层 block 层重试风暴 → PCIe AER 错误计数上升 → 控制器 reset
+   → 链路重新训练 → 盘重新枚举 → 脚本最终断言"数据不一致"
+```
+
+最终呈现给工程师的日志最后一条通常是**最不具信息量的**（超时 / 数据校验失败）。真正的根因在链条上游。
+
+#### 4.3.2 机制：不可逆性边界
+
+定义事件的**可恢复性判据**（deterministic，来自日志字段）：
+
+| 事件 | 可恢复判据 | 说明 |
+|---|---|---|
+| NVMe 命令错误 | 同 LBA/NSID 后续有成功完成记录，且 SMART `media_errors` 未增 | 属于可恢复重试 |
+| PCIe AER Correctable | `uncorrectable` 标志 | Correctable=可恢复；Uncorrectable=不可逆 |
+| 链路重训练 | 后续 `nvme list` 可见且 link 稳定 | 可恢复 |
+| 控制器 reset | reset 之后盘重新枚举成功 | 边界事件（半可逆） |
+| 数据不一致（verify 失败） | 读写模式中存在未 ECC 保护的写路径 | 不可逆 |
+| SMART `critical_warning` 置位 | 持久位 | 不可逆 |
+| 掉盘（设备消失） | 需 reset 恢复 | 不可逆 |
+
+**算法**：
+```
+1. 构建按时间排序的事件流 E = [e_1 ... e_n]，跨源按 t_offset 对齐（±1s 容差）
+2. 为每个 e_i 计算 recoverable(e_i) ∈ {true, false, unknown}
+3. 扫描找到**首个** recoverable=false 的事件 e* → 候选因果起点
+4. 将 e* 之后所有"由 e* 解释"的级联事件标记为 consequence
+   解释关系由一张 SSD 领域因果图判定（边由领域先验知识库给出）
+5. 若存在多个不可逆事件，按"因果图最短路径 + 计数器单调性（首次置位优先）"选主起点
+6. 输出 causal_chain = [e* → consequence_1 → ... → 表面症状]
+```
+
+**跨源时间对齐难点**：case log 时间戳常为相对时间、dmesg 为 boot-relative、SMART 为设备内部时间。解决方案：
+- 采集侧统一注入**单调时钟同步标记**（每个测试用例开始/结束时在串口/BMC 打一个带主机 wall-clock 的标记行），使各源可对齐。
+- 采集侧无法改造时，用"事件锚点匹配"（如 dmesg 中的 nvme 控制器探测时间 ↔ case log 中的 enumerate 时间）做模糊对齐，容差 2s。
+
+#### 4.3.3 领域因果先验图（示例）
+
+```
+NAND_decay ──> UECC ──> retry_exhaust ──> io_timeout ──> verify_fail
+   │            │           │                │
+   │            │           │                └──> blk_retry_storm
+   │            │           └──> ctrl_reset
+   │            └──> media_error_increment
+   └──> (drive age / P/E)
+
+cable_defect ──> pcie_crc ──> link_retrain ──> reenum ──> io_timeout
+hba_defect   ──> pcie_fatal ─> bus_reset
+psu_dip      ──> power_loss ──> unsafe_shutdown ──> FTL_inconsistency
+thermal      ──> throttle ──> latency_increase ──> timeout (false positive!)
+```
+
+**"thermal → latency → timeout"这条边极其重要**：它是典型的**非缺陷超时**（符合规格但接近极限），若不识别会大量误报。系统对该链有专门的判别规则（读取 SMART `temperature` 与 `thermal_throttle_cnt` 增量、对比历史同温区基线）。
+
+#### 4.3.4 技术效果
+
+- 根因定位从"最后一条报错"前移到"首个不可逆事件"，实测可提升根因层级正确率 **20~35 个百分点**。
+- 自动产出**因果链**而非孤立错误码，直接支撑研发定位与缺陷单撰写。
+- 因果先验图是可增量维护的资产（每次新模式采纳后补充边）。
+
+### 4.4 M4 假设-复现-确证闭环（Hypothesis→Execution→Confirmation）
+
+#### 4.4.1 技术问题
+
+LLM 生成的根因结论本质是**假设**。无论提示工程多强，都无法给出一个可被工程组织接受的置信度。要让结论可归档为"资产"，必须有**独立于 LLM 的验证信号**。
+
+#### 4.4.2 机制
+
+```
+Hypothesis(带证据链) ──> 配方生成(Repro Generator)
+      │                          │  自动生成最小复现剧本
+      │                          │  ├ 触发条件: 温度带/预热写量/固件版本/QD
+      │                          │  ├ 操作序列: 具体命令与参数
+      │                          │  ├ 观测判据: 期望的签名(症状签名子集)
+      │                          │  └ 预算: 最长时长/占用真机
+      ▼
+影子调度器(Shadow Scheduler) ──> 影子真机执行(优先用复现成本最低的机器)
+      │  若无空闲真机 → 降级为"低优先级排队"或"仅在下一轮 CI 空窗执行"
+      ▼
+执行结果比对: 期望症状签名 ⊆ 实际症状签名 ?
+      ├ 是 → confirmed_by=machine_reproduction, confidence 提升至 ≥0.95
+      └ 否 → 假设被证伪 → 记录反证 → 触发 M5 通道(误判判别式挖掘)
+```
+
+#### 4.4.3 复现配方格式（可执行，非自然语言）
+
+```yaml
+recipe_id: RC-0091
+target:
+  symptom_hash: "sha256:9f1c..."
+  dut_profile: {model: SSD-9900-3.2T, fw_min: 7.10.0, fw_max: 7.10.4}
+preconditions:
+  - write_precondition_tb: 30        # 需要预热写入量
+  - ambient_c: [35, 45]              # 温度带，命中 thermal 边界
+  - bench_sharing: isolated
+steps:
+  - {cmd: "nvme format --ses=0", timeout_s: 300}
+  - {cmd: "fio --rw=randrw --rwmixread=90 --iodepth=64 --bs=4k --ioengine=io_uring --time=3600 --verify=crc32c", timeout_s: 4200}
+  - {cmd: "nvme smart-log -o json"}
+observation:
+  expect_symptom_subset: ["tmpl_uecc_media", "tmpl_io_timeout"]
+  expect_error_codes: ["0x81"]
+  expect_counter_delta: {media_errors: ">=1"}
+budget: {max_minutes: 90, machine_class: "burn-in-3"}
+```
+
+#### 4.4.4 关键工程难点与对策
+
+| 难点 | 对策 |
+|---|---|
+| 真机资源稀缺（几十台服务器同时在跑测试） | 影子调度器与业务测试**分时复用**，占用预算按机器池与队列控制；复现请求带优先级与成本上限 |
+| 复现成功率低（长稳类问题 24h+） | 配方分级：`L0 快速复现`(<10min, 缩减规模) → `L1 标准` → `L2 全量`；先跑 L0 快速筛，再升级 |
+| 症状签名在不同机器上不完全一致 | 使用**符号化签名**（模板 id 集合而非原始哈希）做匹配，容忍差异 |
+| 复现失败 ≠ 假设错误（可能是配方不够精确） | 区分 `refuted`（在等价条件下必然复现却不复现）与 `inconclusive`（条件不足/资源不足），后者不惩罚假设 |
+| 复现可能造成假缺陷（人为压测引发真故障） | 复现盘标记为"实验盘"，异常时走独立流程，防止污染缺陷库 |
+
+#### 4.4.5 技术效果
+
+- 根因可信度具备**独立于生成模型的第三方信号**（机器复现），这是资产归档的准入门槛。
+- 复现配方本身成为资产：后续同类失败可**直接执行验证**，把"分析耗时"转为"执行耗时"。
+- 有效配方可反哺测试用例设计（M5 通道三）。
+
+### 4.5 M5 三通道自进化（Three-Channel Self-Evolution）
+
+#### 4.5.1 技术问题
+
+多数"AI+运维"系统的自进化止步于"多存点数据，下次检索到"。其问题：① 检索只能提升召回，无法提升判定；② 错误结论会随使用被放大；③ 知识增长没有成本控制（越来越慢、越来越贵）。
+
+#### 4.5.2 机制：三条独立演化的通道
+
+反馈信号 `reward` 定义：
+
+| 反馈 | reward | 说明 |
+|---|---|---|
+| accept（采纳） | +1.0 | 结论正确 |
+| correct（纠正） | +0.2 | 方向对但细节错 → 弱正反馈，样本用于"部分正确"蒸馏 |
+| reject（驳回） | −1.0 | 结论错误 → 强负反馈 |
+| ignore（超时未处理） | 0（但计为"低价值通知"，进入降噪） | 中性 |
+
+#### 通道一：检测规则蒸馏（Deterministic Rule Distillation）
+
+**目的**：把"确认过的 AI 结论"固化为**确定性检测规则**，让同类问题下次在 LLM 之前就被识别。
+
+**流程**：
+```
+1. 从 confirmed 案例集合中，取 (symptom 特征 → 正确 label) 对
+2. 特征候选：日志模板集合、错误码组合、计数器增量、失败阶段、环境维度
+3. 规则生成：决策树/规则学习，在"特征 → 标签"上最小化规则数（可解释性优先）
+4. 规则形式：正则谓词 + 结构化条件，形如
+   rule: error_codes ⊇ {0x81} AND retry_exhaust_seen AND fail_stage=verify_phase
+         AND fw_version_class=7.10.x  ==>  label=FW_RETRY_OVERFLOW
+5. 影子评估：在历史 case 全量回放，统计精确率/召回率/覆盖率
+6. 闸门：精确率 ≥ 0.97 且 覆盖 ≥ 0.5 才可上线（canary 10% → 50% → 100%）
+```
+**效果**：命中规则的 case **零 LLM 调用**（成本降 90%+），且结论一致性强于 LLM；LLM 只处理规则未覆盖的"长尾"。
+
+#### 通道二：策略优化（Prompt/求解链策略的在线 Bandit）
+
+**目的**：优化"用什么方式分析"——不同的失败类型用不同的求解链效果差异极大。
+
+**动作空间 `a`**（策略）：
+- `a1`：纯规则 + 检索
+- `a2`：检索增强的单轮推理
+- `a3`：多轮链式推理（证据 → 假设 → 证伪 → 修正）
+- `a4`：加入因果图谱推理
+- `a5`：直接调用复现（跳过 LLM 推理，仅在配方命中时）
+- 提示词变体：不同 few-shot 组合、不同证据呈现顺序
+
+**状态 `s`**：失败类型特征向量（symptom 语义 embedding + 环境维度 + 失败阶段 + 历史求解链）。
+**奖励**：人工反馈 reward 的延迟折扣累计。
+**算法**：Thompson Sampling / UCB（简单可解释，适合少量动作与可解释要求）。
+
+```
+选择策略：a* = argmax_a  E[reward | s, a] + λ · sqrt(ln t / N(s,a))
+更新：N(s,a)+=1 ; 后验 Beta 更新（对 accept/correct/reject 建模）
+冷启动：对每个 s 强制先试 a3/a4（先验最优），保证早期不因运气差而锁死次优策略
+```
+
+**效果**：分析质量随使用提升而非退化；不同失败族自动采用不同最优策略（写放大类问题走链式推理，掉盘类问题走复现优先）。
+
+#### 通道三：测试资产反向生成（Reverse Test-Asset Generation）
+
+**目的**：让系统不仅"会分析"，还能**让下次不再失败**（闭环到测试侧）。
+
+**流程**：
+```
+1. confirmed 失效模式 → 生成回归测试用例规格
+   {触发条件, 复现配方 → 最小化, 期望判据, 超时预算, 环境约束}
+2. 生成物类型：
+   a) 回归用例（Python，用例模板 + 参数矩阵）
+   b) 预检脚本（fail-fast：在用例开始前检查环境健康度：背板 CRC 基线、HBA 固件、温度、供电、共享端口占用）
+   c) 判据增强（把"数据不一致"细化为带落盘上下文与扇区信息的判据）
+   d) 用例隔离建议（如某盘需独占某 HBA 端口）
+3. 一律以 PR 形式提交到测试仓库，走**人工 code review**，绝不自动合并
+4. 落地后统计：该模式逃逸率是否下降（回归护栏指标）
+```
+
+**效果**：系统产出可量化的**质量收益**（逃逸率下降），这是"进化"最容易被组织接受的证明。预检脚本能直接砍掉一批环境类误报。
+
+#### 4.5.3 演进的安全闸门（双闸门 + 灰度 + 回滚）
+
+```
+闸门1（离线）：金标准集（人工标注的 300~500 条）+ 历史 case 全量回放
+   通过标准：新版本不劣于基线（关键指标：根因准确率、误报率、覆盖率、token 成本）
+闸门2（影子）：新版本对线上新 case 只出结论不通知（shadow mode），与现网结论比对
+   通过标准：一致率 ≥ 95% 或 人工抽样胜出率 ≥ 现网 + 5%
+灰度：canary(10%) → 50% → 100%，每级观察 ≥ 3 天或 ≥ 200 case
+回滚：任一闸门失败或线上误报率上升 → 自动回滚到 parent_version（秒级）
+```
+
+**防污染机制**：知识资产（失效模式卡）的写入必须有 `confirmed_by ∈ {human, machine_reproduction}` 且置信度 ≥ 0.9；仅 `proposed` 的结论进入"候选区"，不进入检索库。
+
+### 4.6 M6 误判判别式挖掘（Discriminative Feature Mining）
+
+#### 4.6.1 技术问题
+
+人工"驳回"是价值密度最高的信号：它明确指出了系统的错误。但绝大多数系统只是把它记为一个负样本。真正的价值在于：**从这次误判中提炼出"什么样的判别式能避免这类错误"**，并固化为永久护栏。
+
+#### 4.6.2 机制
+
+```
+输入：被驳回的 (case X, 错误结论 Y)，以及同库中若干被采纳的 (case Z_i, 正确结论 W_i)
+1. 特征差分：在 X 与 {Z_i} 上求特征集差异
+   F_diff(X) = 特征(X) \ 交集 特征(Z_i) 的公共部分
+   即：找出"X 独有、而正确案例普遍不具备"的特征
+2. 判别式生成：把 F_diff 中可结构化的项转成一条约束
+   例：X 中 "host=hba_new_batch_B" 而所有被采纳案例 host ∈ {A,C}
+      → 判别式：新增 HBA 批次首次出现时，不直接套用旧结论
+3. 提升为规则：
+   - 若该特征稳定出现（同一判别式被 ≥2 次误判触发）→ 升级为**全局护栏规则**
+   - 否则 → 作为该失效模式卡的**适用条件收紧**
+4. 护栏执行位置：置于归因层入口，先做适用性检查，命中即降级为"需人工确认"
+5. 回填：护栏规则写入后，**回放验证**——若该护栏会拦截历史上其它被采纳的正确结论，说明过拟合，需调整粒度
+```
+
+#### 4.6.3 技术效果
+
+- 每次误判产生**永久性**系统改进，而非一次性记录。
+- 护栏机制可解释："因为 X 场景下系统曾把 A 误判为 B，现在在该场景下系统降级为人工确认" → 对工程师完全透明。
+- 累积效应：**系统"犯错"的总次数收敛**，这是可量化的进化曲线（对应指标：repeat_mistake_rate 逐月下降）。
+
+### 4.7 机制间的耦合关系
+
+```
+M1 指纹 ──→ 提供检索键与去重粒度
+M2 对照归因 ──→ 提供责任域判定与环境证据
+M3 因果起点 ──→ 提供根因候选（而非症状）
+        ↓
+    M4 复现确证 ──→ 提升置信度至可归档级别
+        ↓
+  人工反馈(accept/correct/reject)
+        ↓
+M5-规则蒸馏  M5-bandit    M5-测试资产
+        ↓
+M6 判别式护栏 ←── reject 样本
+        ↓
+   下一轮分析（更准、更快、更省）
+```
+
+---
+
+## 5. AI 编排与提示工程设计
+
+### 5.1 求解器编排（Solver Orchestrator）
+
+系统采用**多求解器 + 仲裁**，而非单一大提示：
+
+| 求解器 | 输入 | 成本 | 强项 |
+|---|---|---|---|
+| `S1_rule` | 结构化证据 + 规则库 | 极低（纯本地） | 已确认模式的稳定命中 |
+| `S2_retrieval` | symptom 检索 → 失效模式卡 + 历史确证案例 | 低 | 复用已有结论（大部分场景） |
+| `S3_chain` | 完整证据包 + 因果图 + few-shot | 高 | 新颖、组合型问题 |
+| `S4_repro` | 命中配方 → 直接复现 | 高（真机） | 可确证类问题 |
+| `S5_critic` | 对 S1–S4 产出做对抗性审查 | 中 | 捕获"看似合理但无证据支撑"的结论 |
+
+**仲裁融合**：
+```
+final_label = argmax_l  Σ_s w_s(s) · P_s(label=l | evidence)
+置信度 = 经 Platt/Isotonic 校准后的概率（校准集来自历史人工采纳数据）
+若 top1 与 top2 概率差 < 0.08 → 标记"存在竞争假设"，触发 S5 critic 深度审查，
+  仍无法拉开 → 降级为"待人工确认"，并优先触发复现（若配方候选存在）
+```
+
+### 5.2 证据压缩策略（长日志场景）
+
+SSD 长稳日志常达数百 MB，上下文不可行。采用**分层压缩**：
+
+```
+L0 原始层：只读，存对象存储，带 sha256
+L1 结构化层：解析器抽取的事件流（时间戳 + 事件类型 + 关键字段），体积降 100x
+L2 摘要层：按时间窗聚合（每 5 分钟一桶）统计错误计数、状态迁移序列
+L3 片段层：仅保留"异常邻域窗口"（错误点前后 N 行）+ 关键事件（reset、mount、link）
+```
+
+推理时输入 = L2 全量（紧凑）+ L3 关键片段原文。检索式补充：模型可请求 `read_evidence(evidence_id)` 拉取 L1 原文片段（Qoder SDK 的 read/bash 工具天然支持此模式）。
+
+### 5.3 提示词骨架（S3_chain）
+
+```
+# 角色
+你是 SSD/PCIe/NVMe 存储测试的资深失效分析专家，负责判定一次自动化测试失败的根因。
+
+# 输入
+1. 用例与参数：{case}
+2. 被测件：{dut}
+3. 执行环境：{env}
+4. 同期对照统计（来自同批次对照归因模块）：{cohort}
+5. 结构化事件流（L2）：{events}
+6. 关键片段（L3）：{snippets}
+7. 因果先验图（相关子图）：{causal_graph}
+8. 候选历史失效模式卡（按兼容度排序）：{cards}
+
+# 任务
+1. 重建因果链，定位**首个不可恢复事件**（不要停在最后一个报错）
+2. 给出 2~4 个候选根因，每个必须标注：
+   - 责任域层级 L0~L6
+   - 支撑证据 evidence_id 列表（必须逐条引用，不得编造 id）
+   - 反对证据 evidence_id 列表（若没有，指出"未发现反对证据"）
+   - 先验概率与后验概率估计
+3. 指出信息缺口：哪些证据缺失会显著改变结论
+4. 若可构造复现配方，输出结构化配方（YAML），并声明预期症状签名
+
+# 约束
+- 禁止输出无 evidence_id 支撑的判断
+- 区分「被测件缺陷」「测试系统/环境问题」「符合规格的极限表现」「随机不可复现」
+- 涉及温度/功耗导致的时限延展，默认先怀疑规格符合性
+- 输出必须为 JSON Schema 约束（见 §7.2）
+```
+
+### 5.4 失败模式降级链（防止"疑罪从有"）
+
+分析结论**默认不假设 DUT 有问题**。判定顺序固定：
+
+```
+1. 先排除测试系统/环境（M2 对照归因 + 预检基线）
+2. 再排除脚本/用例自身缺陷（断言逻辑、参数越界、并发冲突）
+3. 再排除随机性（重复执行证据、flaky 指标）
+4. 再排除规格符合性（对照 spec 限值、温度/功耗边界）
+5. 最后才归因到 DUT（区分固件层 L4 / 器件层 L5 / 设计裕量 L6）
+```
+
+每一步的排除都要有**排除依据**（可为空但必须显式声明"无对照数据"）。
+
+### 5.5 与 Qoder Agent SDK 的集成要点
+
+基于 Qoder Agent SDK（Python）的关键能力与用法：
+
+- **Cloud Agent 运行时**：`experimental_cloud_agent` 开启后 agent/session 跑在云端容器，本地只发请求并消费 SSE 事件流。适合**批量分析、重任务、跨机器复用 session**。
+- **多轮会话**：`QoderSDKClient.connect()` → 逐轮 `query()` + `receive_messages()`，session 上下文由 Cloud 侧保存，脚本重启/换机可接续。
+- **工具白名单**：分析 agent 仅开放 `read / glob / grep / bash(只读) / write(产物写入)`；`web_fetch / web_search / edit` 关闭以降低风险与成本。
+- **文件挂载**：通过 Files API 上传日志，`session.create.resources` 挂载到容器路径，实现"海量日志不经过上下文"。
+- **流式调优**：`stream.afterId` 支持断点续传与去重；`deltaFlushIntervalMs` 控制增量刷新频率。
+- **降级策略**：Cloud Agent 状态为 experimental，**生产链路不依赖未标稳定的字段**。因此系统设计上：
+  - 主路径用**结构化 + 工具调用**的稳定契约（prompt + JSON Schema 输出 + 工具协议），不依赖特定 SDK 内部字段；
+  - 封装 `LLMGateway` 抽象层，可切换 Qoder SDK / 本地 CLI / 备用模型；
+  - Cloud 不可用时自动降级到本地 CLI 运行时（涉密日志优先走本地）。
+
+**成本控制**：
+| 手段 | 效果 |
+|---|---|
+| 失败族聚合分析（同 fingerprint 一族一次深度分析，成员共享结论 + 差异增量） | 分析调用数下降 60~90% |
+| 规则快路径命中即短路 | 无需 LLM 调用 |
+| L2/L3 分层压缩 | 输入 token 降 100x |
+| effort 分级（简单失败用 low，疑难用 high） | token 成本降 ~40% |
+| Prompt/资产版本缓存 + 语义缓存（相似 fingerprint 复用） | 重复问题近零成本 |
+
+---
+
+## 6. 通知与协同机制
+
+### 6.1 通知分级
+
+| 级别 | 触发条件 | 通知对象 | 时限 |
+|---|---|---|---|
+| **P0** | 新失效模式（novel symptom）+ 高置信 + 已复现确证 | 责任研发 + 组长 | 立即 |
+| **P1** | 已知模式的新实例，置信度 ≥0.75，且 24h 内 ≥3 次或跨 2 台机器 | 模式责任人 | 1 小时内 |
+| **P2** | 已知模式、低频、置信度 0.5~0.75 | 值班人 | 工作时间聚合 |
+| **P3（不通知）** | 置信 <0.5 或 规则快路径已判定 | 进入看板 | — |
+
+### 6.2 降噪机制（误报疲劳是第一杀手）
+
+1. **指纹级去重**：同一 `composite_key` 在时间窗内合并为一条聚合通知，附"新增 N 例"。
+2. **复发抑制**：已被标记为"已知/环境问题"的模式，同类再次发生时静默累加，只在超阈值（例：24h 内从 3 次涨到 30 次）时升级通知。
+3. **通知与执行的解耦**：环境类失败（infra）不通知研发，只通知平台/基础设施责任人。
+4. **置信度门限自适应**：若某责任域近期采纳率低（系统在该域表现差），自动提高该域的通知门限。
+5. **预算控制**：每人每日通知 ≤ N 条，超出者聚合为"日报摘要"。
+
+### 6.3 钉钉交互闭环
+
+**机器人卡片**包含：
+```
+【P1】新失败 · 固件重试预算耗尽
+指纹 FP-7C2A · 置信度 0.91（已复现确证）
+责任域：L4 固件 | 主机 ssh-test-07 | 盘 S5Y1NX0T123456
+首发症状：UECC(0x81) → 重试耗尽 → IO 超时
+同批次对照：其他 5 块盘同主机正常，本盘在 3 台主机均失败 → 指向被测件
+处置建议：1) 隔离该盘 2) 复核 fw 7.10.2 变更 3) 已生成复现配方 RC-0091
+[确认正确] [纠正结论] [驳回] [查看证据链] [申请复现]
+```
+
+**回调处理**：
+- `确认正确` → `accept`，reward=+1，触发资产沉淀与规则蒸馏。
+- `纠正结论` → `correct`，弹出根因选择 + 自由文本，reward=+0.2。
+- `驳回` → `reject`，要求（可选）选择驳回原因，reward=−1，触发 M6。
+- `申请复现` → 创建复现作业，写入影子队列。
+
+**通知渠道**：钉钉机器人（群）承载 P0/P1 广播；钉钉**工作通知**（DingTalk Work Notification）承载定向 P1/P2 到个人。
+
+### 6.4 反馈的"轻量化"设计
+
+降噪的极端做法是"不通知"，但那样就收集不到反馈。因此：
+- 对 P2/P3 走**看板式待办**而非推送；
+- 反馈入口在**失败详情页**同样存在（钉钉不是唯一入口）；
+- 反馈成本 ≤ 2 次点击（采纳一键、纠正需选标签）。
+
+---
+
+## 7. 数据契约与接口设计
+
+### 7.1 平台对接接口（分析系统提供给测试平台）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/failures` | 平台推送失败事件（含 payload + artifacts 引用） |
+| POST | `/api/v1/batches` | 平台推送批次拓扑（run_group_id + 拓扑快照） |
+| GET | `/api/v1/analyses/{failure_id}` | 查询分析结果（轮询或订阅） |
+| GET | `/api/v1/analyses/{failure_id}/stream` | SSE 实时进度（解析→归因→复现→结论） |
+| POST | `/api/v1/feedback` | 提交反馈（前端/钉钉回调共用） |
+| GET | `/api/v1/fingerprints/{hash}` | 指纹聚合视图（同族失败列表） |
+| GET | `/api/v1/cards` | 失效模式卡检索 |
+| POST | `/api/v1/repro` | 提交复现请求 |
+| GET | `/api/v1/repro/{job_id}` | 复现作业状态 |
+| GET | `/api/v1/evolution/records` | 进化记录与版本 |
+| POST | `/api/v1/evolution/{record_id}/rollback` | 回滚 |
+| GET | `/api/v1/metrics/quality` | 质量看板数据 |
+
+### 7.2 LLM 输出 JSON Schema（强约束）
+
+```json
+{
+  "type": "object",
+  "required": ["causal_chain", "hypotheses", "information_gaps"],
+  "properties": {
+    "causal_chain": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["event_ref", "recoverability"],
+        "properties": {
+          "event_ref": {"type": "string"},
+          "recoverability": {"enum": ["recoverable", "irreversible", "unknown"]},
+          "is_origin": {"type": "boolean"},
+          "explains": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array", "minItems": 1, "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["label", "layer", "support", "oppose", "posterior"],
+        "properties": {
+          "label": {"type": "string"},
+          "layer": {"enum": ["L0_env", "L1_host", "L2_harness", "L3_protocol", "L4_firmware", "L5_device", "L6_spec"]},
+          "statement": {"type": "string"},
+          "support": {"type": "array", "items": {"type": "string", "pattern": "^EV-[0-9a-f]+$"}},
+          "oppose":  {"type": "array", "items": {"type": "string", "pattern": "^EV-[0-9a-f]+$"}},
+          "posterior": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "information_gaps": {"type": "array", "items": {"type": "string"}},
+    "reproduction": {"type": ["object", "null"]}
+  }
+}
+```
+
+**工程化校验**（在模型输出之后、写入 DB 之前）：
+- `support`/`oppose` 中每个 `evidence_id` 必须存在于本次证据集 → 不存在则**删除该条引用**并把置信度打回 0.5 以下（防幻觉）。
+- 顶层 `causal_chain[0]` 必须 `is_origin=true` 且 `recoverability=irreversible` → 否则整条结论降级。
+
+### 7.3 环境预检基线（Pre-flight Baseline）
+
+在分析前先做**环境健康快照**，作为 M2 的辅助证据：
+
+```
+对每台执行主机持续采集基线：
+  - PCIe AER correctable/uncorrectable 计数（每 10 分钟增量）
+  - 链路速度/宽度/协商状态抖动次数
+  - NVMe SMART: media_errors, unsafe_shutdowns, percentage_used, temperature, thermal_throttle_cnt
+  - 主机温度、CPU 频率降频标记
+  - 供电事件（IPMI/BMC 日志）
+  - 共享端口占用（同机同 HBA 同时间其它 DUT）
+```
+异常主机（基线越界）被标记，失败落在异常主机上时，M2 判定自动加权为环境侧。
+
+---
+
+## 8. 前端模块设计（嵌入现有测试平台）
+
+### 8.1 集成方式
+
+- **推荐**：作为平台内独立路由/微前端模块（iframe 或 module federation），复用平台的登录态与权限体系；平台仅需在失败详情页加一个"AI 分析"Tab。
+- **备选**：独立前端应用 + 平台内链接跳转（集成成本最低，能力受限）。
+
+### 8.2 页面清单
+
+| 页面 | 关键内容 |
+|---|---|
+| **失败详情 - AI 分析 Tab** | 结论卡片（责任域/置信度/是否已确证/处置建议）+ 证据链时间线 + 候选假设对比 + 复现状态 + 反馈按钮 + 相似历史 |
+| **证据链时间线** | 按时间轴展示事件；可逆/不可逆着色；不可逆边界高亮标注"疑似因果起点"；点击展开原始日志行 |
+| **同批次对照面板** | 主机 × DUT 失败热力图；本例位置高亮；结论的依据统计量（Fisher p、收缩失败率、反事实对照说明） |
+| **失效模式卡库** | 卡片列表 + 详情（证据模板/规则/配方/回归用例/处置手册/血缘/置信度历史） |
+| **复现实验室** | 配方列表、提交复现、执行日志、签名匹配结果 |
+| **进化看板** | 规则集版本与命中统计、策略 bandit 收敛曲线、误判护栏清单、回归护栏指标、灰度与回滚操作 |
+| **质量看板** | 准确率、误报率、采纳率、平均定位时长、逃逸分析、噪声分布 |
+| **我的待办** | 待确认队列（P3/低置信/竞争假设） |
+
+### 8.3 交互要点
+
+- **渐进披露**：默认显示结论与三行依据；细节（完整证据链、原始日志）在展开/跳转后才加载（避免"日志墙"）。
+- **对比式呈现**：多个候选假设并排显示支持/反对证据，由人一眼看出差异。
+- **一键确证**：对已有配方的失败，提供"立即复现"按钮。
+- **解释性**：每个数字都可下钻（置信度 → 校准曲线点；失败率 → 原始样本）。
+
+---
+
+## 9. 部署与技术选型
+
+### 9.1 部署拓扑（内网 Linux）
+
+```
+                    ┌──────────── 内网 DMZ ────────────┐
+                    │  钉钉网关（出网，仅此一处白名单）    │
+                    │  Qoder Cloud（若涉敏等级允许）      │
+                    └───────────────────────────────────┘
+┌───────────── 内网核心区（无出网）──────────────┐
+│  analysis-api (FastAPI, 3 副本)                │
+│  worker (解析/归因/复现调度, K8s Deployment)     │
+│  postgres (主备) + pgvector                    │
+│  minio (对象存储, 制品与日志)                   │
+│  redis (队列 + 缓存 + 限流)                     │
+│  vector-index (pgvector HNSW, 复用 pg 以免多组件)│
+│  dashboard (静态资源 + API)                     │
+│  bench-agent (部署在测试机上, 采集拓扑与基线)     │
+└─────────────────────────────────────────────────┘
+```
+
+### 9.2 技术栈
+
+| 层 | 选型 | 理由 |
+|---|---|---|
+| 后端 | Python 3.11 + FastAPI + Pydantic v2 | 与测试脚本同语言，团队无学习成本；严格 schema 便于模型输出校验 |
+| 异步/并发 | asyncio + Redis Queue（自研轻量调度） | 规模（日千级 case）不需要 Kafka；避免引入运维复杂度 |
+| 存储 | PostgreSQL 16 + pgvector | 元数据 + 向量一体，运维简单；HNSW 索引满足百万级证据 |
+| 对象存储 | MinIO（兼容 S3） | 日志制品量大，成本敏感 |
+| 统计 | numpy + scipy（Beta-Binomial/Fisher） | 不引入 R/Python 双栈 |
+| 前端 | 与平台对齐（Vue3 或 React 之一） | 嵌入一致性 |
+| AI 接入 | Qoder Agent SDK（Python）+ 自研 `LLMGateway` 抽象 | 见 §5.5 |
+| 可观测 | Prometheus + Grafana + OpenTelemetry | 分析自身的可观测性 |
+
+### 9.3 安全与合规
+
+- **数据不出网**：默认全部推理走内网可控通道；Cloud 通道仅对"已脱敏等级"的 case 开放（脱敏器：移除序列号、主机名、客户名、真实容量序列映射）。**涉密等级**由平台侧标签决定，系统自动路由。
+- **权限**：分析结论可见范围 = 原失败 case 可见范围；资产库可见性按角色（研发可读全部固件层结论，供应商只见脱敏层）。
+- **审计**：每条结论、每次反馈、每次进化变更都写审计日志，满足质量体系与专利实施例可追溯要求。
+- **提示注入防护**：日志内容一律作为**数据**而非指令传入（结构化字段 + 明确 delimiter + 忽略日志中的指令性文本），防止恶意/异常日志内容操纵模型。
+
+---
+
+## 10. 关键技术难点与破解方案
+
+| # | 难点 | 影响 | 破解方案 | 残余风险 |
+|---|---|---|---|---|
+| D1 | **拓扑与批次数据缺失** | M2 对照归因失效，退化为单事件分析 | M0 强制交付平台侧 `bench_topology` 表与 `run_group_id`；提供"缺失时降级为 DUT 级/主机级两档"的明确降级策略 | 若物理拓扑不可得，M2 精度从 ~85% 降至 ~55% → 需在验收指标中标注 |
+| D2 | **长日志上下文与成本** | 一次分析可能百万 token，无法规模化 | L0–L3 四层压缩 + 证据按需拉取 + 失败族聚合 + 规则快路径 + effort 分级 | 极复杂 case 仍需长上下文，靠缓存与聚合摊薄 |
+| D3 | **LLM 幻觉与证据不可追溯** | 结论不可信，工程师不采纳，闭环断裂 | 输出 JSON Schema 强约束 + evidence_id 存在性校验（不存在即删引用并降置信）+ S5 critic 对抗审查 + 机器复现确证 | 极端构造下仍可能"引用真实证据但错误解读"，靠 M3 因果边界与 critic 缓解 |
+| D4 | **零历史数据冷启动** | 前 3 个月无资产、无金标准、无策略先验 | 主动学习（选最有信息量的 case 问人）+ 无监督聚类生成候选族 + 领域先验（NVMe/PCIe 错误码字典、因果先验图）+ 种子知识（厂商 errata/release note 抓取）+ 复现确证作为快速确证通道 | 冷启动期准确率必然低，需向组织明确"前 8 周以收集标注为主" |
+| D5 | **复现成本与资源争抢** | 复现排队长，确证延迟 | 分级配方（L0 快速/L1 标准/L2 全量）+ 影子机分时复用 + 成本上限 + 优先级队列 + 资源不足时标 inconclusive 而非证伪 | 高价值长稳问题仍需等待窗口 |
+| D6 | **知识库污染与错误放大** | 一次错误采纳污染检索，后续全错 | 双闸门（离线金标准 + 影子）+ 灰度 + 秒级回滚 + 资产需 confirmed_by 准入 + M6 护栏 + 卡片版本血缘与 `deprecated` 状态 | 灰度期内存在双版本不一致，人工认知成本 |
+| D7 | **反馈稀疏与噪声** | bandit 学不到东西 | 多信号（accept/correct/reject/ignore/响应时长）+ 奖励整形（correct=+0.2 弱正）+ 状态定义粗粒度（失败族级而非 case 级）+ 先验强制探索 | 反馈率 <5% 时收敛慢，需产品设计保证低摩擦反馈 |
+| D8 | **环境类误报难判** | 直接影响缺陷库可信度 | M2 对照归因 + 预检基线 + 因果图中显式建模 thermal/CRC/power 链 + 降级链中"先排除环境" | 环境与 DUT 交互型（如某盘在某背板才失败）仍是最难类别 |
+| D9 | **通知误报疲劳** | 通知被屏蔽，系统等于不存在 | 指纹聚合 + 复发抑制 + 责任域自适应门限 + P3 走看板 + 通知预算 + 采纳率作为一级 KPI | 组织文化依赖，需要先建立"驳回也是有用反馈"的共识 |
+| D10 | **Qoder SDK experimental 风险** | SDK 变更导致生产链路故障 | `LLMGateway` 抽象 + 只依赖稳定契约（prompt/JSON/工具协议）+ 不依赖 SDK 内部字段 + 本地 CLI 降级路径 + 契约测试 | Cloud 特有能力（session 持久化）不可用时需自建状态存储 |
+| D11 | **并发多盘互扰** | 假失败、真失败混杂 | bench_sharing_mode 纳入环境向量；共享端口进对照网格；预检脚本建议独占 | 彻底解决需物理隔离，成本高，仅作长期建议 |
+| D12 | **规格符合性判定** | 误把"符合规格的极限"报为缺陷 | 因果图 thermal→latency→timeout 边 + 对照 spec 限值 + 温度/功耗历史基线 + "极限表现"独立标签 | 依赖 spec 数据可结构化，缺失时只能靠人工 |
+
+---
+
+## 11. 专利布局
+
+### 11.1 布局策略
+
+**不主张**："使用 AI 分析日志"（现有技术密集，易驳回）。
+**主张**：具备可量化技术效果的具体技术手段组合。
+
+建议拆分为 **3 件发明专利**（可同族或分案），形成"机制—效果"链条：
+
+| 编号 | 主题 | 核心独立技术特征 | 预期效果表述 |
+|---|---|---|---|
+| **P1** | 存储设备测试失败的**双层指纹与环境敏感归一化**方法 | 将失败特征解耦为环境无关的症状签名与环境向量；复合键决定资产适用边界；环境兼容性打分控制结论迁移 | 跨机器跨盘号聚合一致率提升；避免环境错配导致的根因误判 |
+| **P2** | 基于**同批次对照与不可逆性边界**的存储测试失败根因归因方法 | 构造 DUT×环境的反事实对照网格并做统计显著性判定；按可恢复性划分因果级联并定位首个不可逆事件作为因果起点 | 环境误报识别率提升；根因层级正确率提升 |
+| **P3** | **假设-复现-确证与三通道自进化**的测试失败分析系统 | 假设生成→结构化复现配方→影子真机执行→签名匹配确证→三通道（规则蒸馏/策略 bandit/测试资产反向生成）演进→双闸门灰度回滚→误判判别式挖掘 | 根因可信度提升；重复问题分析成本下降；逃逸率下降 |
+
+可选 **P4**（工程保护）：测试失败分析的**故障注入与影子调度**方法（配方化复现的资源预算调度）。
+
+### 11.2 权利要求撰写要点
+
+- **独立权利要求**（方法 + 系统/装置 + 存储介质三种形式）：必须写入**具体的数据结构与判定步骤**，且步骤之间存在**数据依赖关系**（避免被认定为纯智力活动规则）。
+  - 例：P2 的独立权利要求应包含：① 以 DUT 标识与环境标识为轴构造对照网格；② 计算收缩失败率并做显著性检验；③ 按可恢复性属性划分事件流并定位首个不可逆事件；④ 将两者结果融合以输出责任域。
+- **从属权利要求**（10~15 项）：锁定 Beta-Binomial 收缩公式、反事实对定义、因果图边、温度降级链、指纹字段组合、复现配方 YAML 结构等 —— 这些细节构成**防御纵深**，即使独权被驳，从权仍可存活。
+- **避免落入"纯算法"**：所有步骤必须绑定存储介质、IO 通路、固件/驱动/测试框架层级、具体日志字段（NVMe status code、PCIe AER 计数器、SMART 计数器增量）。这也是必须写进**实施例**的具体内容。
+- **实施例数据**：需准备 3~5 个真实失败案例的完整链路（脱敏后）：日志片段、对照网格统计、因果链、复现记录、进化前后指标对比。这是专利可信度的关键。
+
+### 11.3 现有技术规避检索方向（提交前必做）
+
+需在提交前针对以下方向做检索并撰写规避说明（**注意：以下为需排查的技术方向，不代表已确认的对比文件，需实际检索后据此调整权利要求**）：
+- 日志根因分析的图/规则/因果推断方法
+- AIOps 中的"日志模板聚类 + 知识库复用"
+- 混沌工程中的故障复现与实验回放
+- 存储设备健康评估与介质错误预测
+- 同批次/对照组异常检测（Canary/变更关联分析方法）
+- 反馈驱动的提示词自动优化与 LLM 自改进循环
+- 主动学习与置信度校准在运维告警中的应用
+
+### 11.4 申报节奏
+
+| 时点 | 动作 |
+|---|---|
+| M0 结束 | 完成**发明交底书**（内部）：P1/P2/P3 各一份，含机制描述、流程图、可量化数据占位 |
+| M2 中期 | 补齐 P1 实施例数据（指纹聚合一致性对比实验），提交 **P1** |
+| M3 结束 | 补齐 P2 实施例数据（对照归因 A/B 对比），提交 **P2** |
+| M4 结束 | 补齐 P3 实施例数据（三通道演进前后对比、误判收敛曲线），提交 **P3** |
+| M5 | 视反馈补充从属权利要求与分案；同步申报**软件著作权**（架构与代码资产保护） |
+
+**配套的知识产权布局**：
+- 失效模式卡库、复现配方库、因果先验图、规则库 → 作为**商业秘密**管理（不进专利全文，放实施例中概述），避免专利公开削弱壁垒。
+- 平台侧新增模块与 `bench_topology` 表结构 → 软著 + 商业秘密。
+
+---
+
+## 12. 演进路线图
+
+> 每阶段都有**可验收的量化出口**，避免"做完一半无法判断是否值得继续"。
+
+### M0 · 打通与地基（4~6 周）
+
+**目标**：能自动把失败事件接进来，出结论并通知到人；建立后续一切工作的地基。
+
+- 平台侧改造（**关键路径**）：暴露 `bench_topology`、`run_group_id`、失败事件推送 API、制品访问方式。
+- 采集器 `collector`：拉取失败事件 + 收集日志制品 + 拓扑快照。
+- 解析器 v1：case log、dmesg、nvme-cli smart/error log、Python traceback、 fio 输出（这五类覆盖 ≥85% 场景）。
+- 指纹 v1：`symptom_signature`（错误码 + 模板序列 + 阶段 + 断言类型）。
+- 分析 v1：单事件归因（LLM 直接读 L2/L3 摘要 + 少量样本），输出 Schema 约束结论。
+- 通知 v1：钉钉机器人卡片 + 工作通知 + 反馈回调（采纳/纠正/驳回三个动作）。
+- 前端 v1：失败详情 AI 分析 Tab（结论 + 证据 + 反馈按钮）。
+
+**出口标准**：
+- 事件接入成功率 ≥ 99%，分析覆盖率 ≥ 90%。
+- 单例分析 P95 ≤ 60s，成本 ≤ ¥0.8/例。
+- 人工抽检 100 例：责任域判定准确率 ≥ 65%（冷启动基线）。
+- 反馈可用性：至少 100 条人工反馈被采集。
+
+### M1 · 归因内核（6~8 周）
+
+- **M2 同批次对照归因**落地（统计模块 + 契约测试）。
+- **M3 不可逆性边界**检测 + SSD 因果先验图 v1。
+- 多源时间对齐（串口/BMC 时间标记注入）。
+- 置信度校准（用 M0 采集的反馈做 Platt 校准）。
+- 指纹 v2：加入 `environment_vector` 与 `composite_key`，环境兼容度打分。
+- 前端：证据链时间线 + 同批次对照热力图。
+
+**出口标准**：
+- 责任域判定准确率 ≥ 78%。
+- 环境误报识别率（抽样 200 例）≥ 80%。
+- 归因结论可区分 DUT/环境/框架/随机四类，准确率 ≥ 75%。
+
+### M2 · 资产与复用（6~8 周）
+
+- 失效模式卡库 + 失效族聚合视图 + 相似案例检索（向量 + 指纹双路）。
+- 复现配方生成（LLM 生成 YAML）+ 影子调度器 v1（占用预算控制）。
+- 检测规则蒸馏通道 v1（含离线金标准集与影子评估框架）。
+- 置信度-通知门限联动。
+
+**出口标准**：
+- 命中失效模式卡的复用率 ≥ 25%（同类问题直接命中）。
+- 复现配方自动生成可用率 ≥ 70%，人工修正后执行成功率 ≥ 60%。
+- 规则快路径覆盖 ≥ 15%，命中部分零 LLM 成本。
+
+### M3 · 复现确证与策略进化（8~10 周）
+
+- 复现闭环完整跑通（含签名匹配、refuted/inconclusive 区分）。
+- 策略 bandit（Thompson Sampling）上线，含先验强制探索。
+- 离线评估框架（300+ 条金标准）自动化，接入每次变更的 CI 闸门。
+- 灰度与一键回滚。
+
+**出口标准**：
+- 已确证（machine_reproduction）资产占比 ≥ 40%。
+- 策略 bandit 相对固定策略在金标准集上准确率提升 ≥ 5 个百分点。
+- 回滚演练通过（变更 → 评估 → 灰度 → 回滚 ≤ 5 分钟）。
+
+### M4 · 闭环进化与规模化（8~10 周）
+
+- 测试资产反向生成通道（回归用例 PR、预检脚本、判据增强）。
+- 误判判别式挖掘（M6）+ 护栏回放验证。
+- 逃逸分析（把线上缺陷与历史失败指纹关联，量化"曾出现过"的比例）。
+- 质量看板完善 + 组织级度量（SLO 化）。
+
+**出口标准**：
+- 回归用例自动生成并合入 ≥ 10 条，覆盖 ≥ 5 个失效模式。
+- `repeat_mistake_rate` 逐月下降 ≥ 30%。
+- 逃逸缺陷中"历史曾出现过"占比 ≥ 50%。
+- 平均定位时长相比基线下降 ≥ 70%。
+
+### M5 · 专利与持续优化（持续）
+
+- 专利提交与实施例数据补齐；商业秘密资产管理；SLO 化运营；扩展到其它存储形态（HDD/RAID 卡）与其它团队。
+
+---
+
+## 13. 度量体系
+
+### 13.1 北极星指标
+
+> **"从失败发生到根因确证（或被正确排除）的中位耗时"**，且**误报率**同时受控。
+
+单一指标容易作弊（快速给个错结论），必须配对约束。
+
+### 13.2 指标看板
+
+| 类别 | 指标 | 目标 |
+|---|---|---|
+| **效率** | 端到端分析时延 P50/P95 | ≤ 30s / ≤ 3min |
+| | 平均定位耗时（MTTR-定位） | 相比基线 ↓ 70% |
+| | 单例分析成本 | ≤ ¥0.5（复现确证另计） |
+| **准确** | 责任域判定准确率 | ≥ 90%（M4） |
+| | 根因 Top-1 准确率 | ≥ 85%（含复现确证样本） |
+| | 误报率（被驳回/被人工判为无效的比例） | ≤ 8% |
+| | 环境类误报识别率 | ≥ 85% |
+| | 竞争假设误判率（top1/top2 差 <0.08 却错） | ≤ 5% |
+| **闭环** | 人工反馈率 | ≥ 35%（P0/P1） |
+| | 采纳率 / 纠正率 / 驳回率 | 采纳 ≥70%，驳回 ≤10% |
+| | 复现配方生成→执行→确证成功率 | ≥ 50% |
+| | 失效模式卡复用率 | ≥ 40%（M4） |
+| **进化** | 规则快路径覆盖率 | ≥ 35% |
+| | bandit 相对基线准确率增益 | ≥ 8 个百分点 |
+| | `repeat_mistake_rate` 月环比 | ↓ ≥ 30% |
+| | 逃逸缺陷历史曾出现率 | ≥ 50% |
+| **通知** | 通知误报率 | ≤ 5% |
+| | 通知→响应中位时长 | ≤ 30 min（P1） |
+| | 每人日均通知条数 | ≤ 8 |
+
+### 13.3 组织机制
+
+- **每周**：失败模式评审会（P0/P1 结论确认 + 误判复盘 + 规则/护栏新增）。
+- **双周**：进化版本评审（策略 bandit 收敛情况、新规则上线）。
+- **月度**：逃逸分析会（把逃逸缺陷关联到指纹库，产出"本可拦截"清单 → 反哺预检与回归用例）。
+- **知识回流**：确认结论 → 研发侧修复公告 → 回写失效模式卡 `disposition_playbook`。
+
+---
+
+## 14. 风险与应对
+
+| 风险 | 等级 | 应对 |
+|---|---|---|
+| 平台侧拓扑/批次改造不被排期 | **高**（直接决定 M2 价值） | M0 即立项；准备降级方案（仅主机级/DUT 级两档），并在立项时明确收益量化；把改造需求写成平台侧收益（误报减少→研发被打断次数下降） |
+| 反馈率过低，闭环无法启动 | 高 | 反馈入口零成本（单键采纳）；钉钉卡片内直接操作；采纳率纳入团队 KPI；未采纳的通知自动降级而非重复推送 |
+| LLM 成本超预算 | 中 | 分层压缩 + 规则快路径 + 聚合分析 + effort 分级 + 语义缓存；按 fingerprint 设月度预算阈值，超限自动降级到低 effort |
+| 结论被工程师不信任（信任危机） | 中 | 每条结论必带证据与统计依据；提供"一键跳到原始日志"；机器复现确证标签；先在只读看板灰度 2 周再推送 |
+| 复现占用真机影响业务测试 | 中 | 分时复用 + 预算上限 + 优先级队列 + 复现标记实验盘；与测试排期协商固定窗口 |
+| 供应商/客户信息泄露 | 中 | 分级脱敏 + 数据不出网默认 + 权限与原 case 一致 + 审计 |
+| 提示注入（异常日志内容） | 中 | 日志作为数据传入 + delimiter + 结构化字段优先 + 忽略指令性文本；模型侧 system prompt 显式声明 |
+| 关键人员（资深工程师）流失带走经验 | 中 | 经验外化为失效模式卡与因果图资产；每次采纳即资产化 |
+| 专利申请被驳回或被规避 | 中 | 分 3 件布局 + 从权防御纵深 + 商业秘密兜底 + 实施例数据充分 |
+| 系统被当成"甩锅工具"（测试 vs 研发的信任问题） | 中 | 定位是"减少无效打扰"，不是"判定谁错"；环境类结论归基础设施而非研发；沟通口径先对齐 |
+
+---
+
+## 15. 立即可执行的三件事（本周内）
+
+1. **落平台改造需求**：`bench_topology` 表 + `run_group_id` + 失败事件推送 API（这是 M0 的关键路径，越早越好）。
+2. **建第一版因果先验图与错误码字典**：把团队现有的 NVMe status code、PCIe AER 错误、SMART 字段、常见固件报错整理成结构化知识（这是冷启动期最重要的资产投入，也最能体现领域壁垒）。
+3. **打通钉钉卡片闭环**：哪怕初版结论粗糙，也要让"失败 → 通知 → 一键采纳/驳回"这条链路先跑起来，因为**反馈数据是后续一切进化的燃料**，晚一周就少一周的进化曲线。
+
+---
+
+## 附录 A · 术语表
+
+| 术语 | 含义 |
+|---|---|
+| DUT | Device Under Test，被测件 |
+| Infra | 测试系统/环境侧（背板、线缆、HBA、供电、散热、主机 OS/driver） |
+| UECC | Uncorrectable ECC，不可纠正 ECC 错误，介质类致命错误 |
+| PLP | Power Loss Protection，掉电保护 |
+| HMB | Host Memory Buffer，主机内存缓冲（DRAM-less 盘用） |
+| AER | PCIe Advanced Error Reporting |
+| symptom_signature | 环境无关的症状签名（双层指纹的上层） |
+| environment_vector | 环境向量（双层指纹的下层） |
+| 不可逆性边界 | 因果级联中首个不可恢复事件，即因果起点 |
+| 反事实对照 | 同批次中承担对照角色的执行（DUT 侧或环境侧） |
+| 失效模式卡 | FailureModeCard，系统沉淀的核心知识资产 |
+| 复现配方 | 结构化、可执行的最小复现剧本 |
+| 判别式 | 从误判中提炼的、可防止同类错误的判别规则 |
+| 金标准集 | 人工标注、用于离线评估的基准样本集 |
+
+## 附录 B · 责任域分层
+
+| 层级 | 名称 | 典型根因 | 处置方 |
+|---|---|---|---|
+| L0 | 环境/物理层 | 背板、线缆、供电、温区、EMI、共享端口冲突 | 基础设施 |
+| L1 | 主机/驱动层 | OS、kernel、nvme driver、blk 层、IOMMU、RAID 卡 | 平台/IT |
+| L2 | 测试框架层 | 脚本 bug、断言错误、参数越界、并发冲突、超时设置 | 测试开发 |
+| L3 | 协议/链路层 | PCIe 链路、NVMe 协议合规性、链路训练异常 | 硬件/固件 |
+| L4 | 固件层 | FTL、GC、磨损均衡、队列管理、HMB、PLP、固件版本 bug | 固件研发 |
+| L5 | 器件层 | NAND die、DRAM、控制器 die、焊点、老化 | 硬件/供应链 |
+| L6 | 规格/设计层 | 规格符合但裕量不足、设计边界 | 产品/系统架构 |
