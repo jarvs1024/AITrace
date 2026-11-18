@@ -1370,6 +1370,66 @@ L3 片段层：仅保留"异常邻域窗口"（错误点前后 N 行）+ 关键�
 - 反馈驱动的提示词自动优化与 LLM 自改进循环
 - 主动学习与置信度校准在运维告警中的应用
 
+#### 11.3.1 现有技术检索快照（2026-11-18，GitHub + 公开资料）
+
+已完成的初步检索表明：**"用 AI 分析测试失败日志"这一层已被大量公开方案覆盖，不可作为新颖点主张**。以下为已确认存在的对比方向，权利要求必须从"泛化 AI 归因"下沉到具体技术手段。
+
+**（一）AI 测试失败归因赛道已拥挤（均为 Web/云软件测试域）**
+
+| 方案 | 形态 | 已公开的能力（对我方的限制） |
+|---|---|---|
+| BrowserStack Test Failure Analysis Agent | 商业 SaaS | 解析日志/执行历史/堆栈，把失败归类为 **产品 / 环境 / 测试脚本** 三类并给修复建议 |
+| Sentry Seer | 商业 SaaS | 跨堆栈/提交/span 的 RCA，自称 **94.5% 诊断准确率**，可自动开 PR |
+| Datadog Test Optimization | 商业 SaaS | CI 测试 span 与生产 APM/RUM trace 关联 |
+| Sauce Labs Failure Analytics | 商业 SaaS | 历史套件失败模式分析 + 系统性 flaky 检测 + ML 失败分类 |
+| ReportPortal | 开源 Apache-2.0 | ML Auto-Analyzer（XGBoost ~30 特征含 cosine 相似度 + 随机森林概率）、**正则签名规则去重已知错误**、**按项目重训模型** |
+| Testkube AI | 开源 | 失败与 Git commit 关联，自动生成修复 PR |
+| PyRCA（Salesforce） | 开源 BSD-3 | 因果发现 **PC / GES / LiNGAM**、Random Walk、贝叶斯推断、**ε-Diagnosis** 根因定位 |
+| RCAEval | 开源 MIT | metric/trace/log 三类 RCA 算法的 **benchmark** 与可复现数据集 |
+| TeamCity QA Intelligence | 开源 MCP | 19 个诊断工具，三分类：**代码变更 / 测试不稳定 / 基础设施故障** |
+| Flaky(Box) / Captain(RWX) / CTRF | 开源 | flaky 重跑判定、隔离(quarantine)、失败摘要 |
+| TestTriage / ai-cicd-failure-triage-agent / testops-copilot / Bug-Analysis-Dashboard / deep-trace / Direly / testsense-ai / ai-test-failure-analyzer | 开源小项目 | 分别为 RAG 失败分析、CI 失败分诊、Robot Framework + RCA、five-whys、**可复跑修复验证**等 |
+
+> **结论 1**：**"环境 vs 用例 vs 产品缺陷"的三分归因已是商业现有技术**（BrowserStack），不得作为独权特征。
+> **结论 2**：**"因果推断/因果图做根因定位"已有成熟开源实现**（PyRCA），必须把新颖性收敛到"硬件测试批次内的对照网格构造 + 具体统计检验"。
+
+**（二）对 M1（双层指纹）的高风险近似**
+
+- `shakoorshkh/pebble`（Rust）：**"fingerprints CI failures, remembers successful recoveries, and safely reuses them"** —— 指纹 + 记忆复用，与 M1+M5 组合最接近，**必须逐条比对权利要求**。
+- `davccavalcante/behavioralai`：per-agent **learned fingerprints** + drift detection + attribution。
+- `sgunes16/Frameval`：**behavioral fingerprint + failure mode classification + recovery analysis**。
+- `showingdata/sql-circuit-breaker`：**按 SQL 指纹维度**的状态机与熔断（指纹作为聚合键的工程先例）。
+- ReportPortal 的"已知错误签名正则去重"与 per-project retrained model（与 M5 规则蒸馏通道可类比）。
+
+> **规避写法**：独权必须写入 ①**环境无关症状签名 × 环境向量**的**解耦**（而非单层指纹）、②**复合键**决定资产适用边界、③**环境兼容度打分**控制结论迁移——这三点是单层指纹方案不具备的。
+
+**（三）对 M2/M4（反事实对照与复现确证）的高风险近似**
+
+- `jaineet17/causal-agent-replay`（★16）：**"Counterfactual replay and causal attribution … find which step actually caused a failure by intervening on it"** —— 反事实重放 + 干预式归因，是 M2/M4 概念上最接近的公开实现（域为 LLM agent 轨迹）。
+- `funkelab/quac`（Quantitative Attributions with Counterfactuals）、`PayamDiba/CIMLA`（Counterfactual Inference by ML and Attribution Models）、`kesjien/wavexplain`（多序列时序预测的反事实归因）。
+- AgentFail 论文（arXiv 2509.23735）提出 **RLDetect**：Trajectory Analyst 定位可疑节点 + **re-rollout-based counterfactual verification**（固定某节点输出后整体是否成功 → 判定该节点为根因），并报告"提供根因信息可使自动修复成功率从 16.3% 提升到 66.8%"。
+
+> **规避写法**：不得主张"用反事实重放找根因"这一抽象思想。必须绑定：①**DUT 标识 × 环境标识**两轴构成的**批次内 2×2 对照网格**（非轨迹节点干预）、②**Beta-Binomial 收缩 + Fisher 显著性**的具体检验流程、③**NVMe/PCIe 语义**下的可恢复性属性判定、④**责任域 L0–L6** 分层输出。
+
+**（四）SSD/存储域：领域空白已确认**
+
+| 项目 | 性质 | 说明 |
+|---|---|---|
+| `pynvme/pynvme`（★217） | 执行框架 | NVMe/PCIe/SPDK 测试工具，**不做失败归因** |
+| `earlephilhower/ezfio`（★201） | 执行框架 | NVMe/SAS/SATA SSD 测试框架，**不做失败归因** |
+| `007revad/Synology_SMART_info`（★152） | 工具 | SMART 属性展示 |
+| `coltonshane/SSD_Test`（★25） | 测试工程 | Zynq Ultrascale+ 裸机 NVMe 测试 |
+| `gtcomm/diskwipe` / `joelandman/disk_test_setup` | 工具 | 磁盘擦除/测试自动化 |
+
+> **结论 3（最有利）**：**所有 AI 归因方案都在 Web/云软件测试域；SSD/NVMe 域只有执行框架，没有一个做失败 AI 归因**。因此"**存储设备测试域 + 硬件拓扑（主机↔HBA↔背板↔温区）+ 责任域 L0–L6 + NVMe status code/PCIe AER 语义 + 真实影子真机复现**"这一整套限定，是本方案最强的护城河，也构成独权中的必要技术特征。
+
+**（五）尚未检索、提交前必须补做的方向**
+
+- 中文专利库（CNIPA / 佰腾 / 智慧芽）："测试用例 失败 归因 指纹 聚类""反事实 对照组 批次 硬件 测试""失效模式 卡 知识库 进化""SSD 失效 复现 配方"
+- IEEE/ACM 会议：故障级联最早事件定位（earliest failure localization）、delta debugging 在硬件测试中的最小复现
+- 厂商白皮书/专利：Samsung / SK Hynix / Micron / Intel 的 SSD 测试与失效分析方法；Delphi / Cadence / Synopsys 的存储 IP 验证方法
+- 中国专利：测试系统自身的故障注入与影子调度（对应可选 P4）
+
 ### 11.4 申报节奏
 
 | 时点 | 动作 |
