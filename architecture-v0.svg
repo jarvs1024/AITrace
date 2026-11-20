@@ -17,7 +17,7 @@
 
   <rect x="0" y="0" width="1560" height="1064" fill="#ffffff"/>
   <text x="780" y="46" text-anchor="middle" font-size="22" font-weight="700" fill="#1a4b8c">AITrace（智溯）· 自动化测试失败 AI 分析进化系统 · 宏观架构 · V0 初稿</text>
-  <text x="780" y="70" text-anchor="middle" font-size="12.5" fill="#5b7794">平台双向对接（供料：pytest 用例日志 + 固件串口日志 / 回传：检视结果）→ 漏斗降噪 → 切片与多源对齐 → 代码×日志×环境×历史 联合诊断 → 分级通知与人工反馈 → 知识资产沉淀，反哺初筛与判定</text>
+  <text x="780" y="70" text-anchor="middle" font-size="12.5" fill="#5b7794">平台双向对接（供料：pytest 用例日志 + 固件串口日志 / 回传：检视结果）→ 三级漏斗降噪（含切片整备）→ 代码×日志×环境×历史 联合诊断 → 分级通知与人工反馈 → 知识资产沉淀，反哺初筛与判定</text>
 
   <!-- ================= 平台侧 ================= -->
   <rect x="24" y="92" width="248" height="748" rx="14" fill="#e9f1fb" stroke="#b9d4f0" stroke-width="1.5"/>
@@ -76,31 +76,27 @@
   <!-- ============ 阶段 1 ============ -->
   <rect x="320" y="160" width="320" height="480" rx="12" fill="#f7fbff" stroke="#d3e4f7"/>
   <text x="480" y="188" text-anchor="middle" font-size="12.6" font-weight="600" fill="#2b7cd3" letter-spacing="1">阶段 1</text>
-  <text x="480" y="207" text-anchor="middle" font-size="12.8" font-weight="700" fill="#16324f">多级数据清洗与漏斗筛选</text>
+  <text x="480" y="207" text-anchor="middle" font-size="12.8" font-weight="700" fill="#16324f">三级漏斗：切片整备 · 规则截流 · 阀门控制</text>
 
-  <polygon points="359,226 601,226 569,260 391,260" fill="#5cc3be"/>
-  <text x="480" y="248" text-anchor="middle" font-size="12.6" font-weight="700" fill="#ffffff">一级初筛</text>
-  <polygon points="391,262 569,262 545,290 415,290" fill="#86d5dc"/>
-  <text x="480" y="281" text-anchor="middle" font-size="11.8" font-weight="600" fill="#0e4b52">二级细筛</text>
-  <polygon points="415,292 545,292 529,316 431,316" fill="#a8e0e5"/>
-  <text x="480" y="308" text-anchor="middle" font-size="11.4" font-weight="600" fill="#0e4b52">三级精筛</text>
-  <polygon points="431,318 529,318 517,340 443,340" fill="#c4e9ec"/>
-  <text x="480" y="333" text-anchor="middle" font-size="11" font-weight="600" fill="#0e4b52">指纹去重</text>
-  <polygon points="443,342 517,342 505,360 455,360" fill="#d7f0f2"/>
-  <text x="480" y="355" text-anchor="middle" font-size="10.6" font-weight="600" fill="#0e4b52">级联抑制</text>
+  <polygon points="359,226 601,226 569,262 391,262" fill="#5cc3be"/>
+  <text x="480" y="249" text-anchor="middle" font-size="12.6" font-weight="700" fill="#ffffff">一级 · 切片整备</text>
+  <polygon points="391,264 569,264 545,300 415,300" fill="#86d5dc"/>
+  <text x="480" y="287" text-anchor="middle" font-size="11.8" font-weight="600" fill="#0e4b52">二级 · 规则截流</text>
+  <polygon points="415,302 545,302 529,338 431,338" fill="#a8e0e5"/>
+  <text x="480" y="325" text-anchor="middle" font-size="11.4" font-weight="600" fill="#0e4b52">三级 · 阀门控制</text>
 
   <circle cx="360" cy="374" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="378" font-size="10.2" fill="#3a4a5c">一级 1a：本地规则逐条判定（流式）</text>
+  <text x="370" y="378" font-size="10.2" fill="#3a4a5c">一级：归属 + 双源对齐 + 三段切片（起始/邻域/收尾）</text>
   <circle cx="360" cy="392" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="396" font-size="10.2" fill="#3a4a5c">一级 1b：同批次共性环境异常（批窗口）</text>
+  <text x="370" y="396" font-size="10.2" fill="#3a4a5c">一级：首错锚点（机器定）+ 证据体检质量门</text>
   <circle cx="360" cy="410" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="414" font-size="10.2" fill="#3a4a5c">二级：证据体检（完整性 · 可判定性 · 一致性）</text>
+  <text x="370" y="414" font-size="10.2" fill="#3a4a5c">二级 1a：本地规则逐条判定（流式，零 AI）</text>
   <circle cx="360" cy="428" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="432" font-size="10.2" fill="#3a4a5c">二级：缺项先补采，超时降级为待确认</text>
+  <text x="370" y="432" font-size="10.2" fill="#3a4a5c">二级 1b：同批次共性环境异常（批窗口）+ 资产快路径</text>
   <circle cx="360" cy="446" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="450" font-size="10.2" fill="#3a4a5c">三级：求解链路由与成本闸门（含上下文预算）</text>
+  <text x="370" y="450" font-size="10.2" fill="#3a4a5c">三级：轻量 AI 分类聚合 + 级联抑制（只留首失败点）</text>
   <circle cx="360" cy="464" r="2.4" fill="#8fa3b8"/>
-  <text x="370" y="468" font-size="10.2" fill="#3a4a5c">指纹去重 → 级联抑制：合并同类，不耗算力</text>
+  <text x="370" y="468" font-size="10.2" fill="#3a4a5c">三级：会话仲裁（谁启动谁付）+ 路由预算成本闸门</text>
 
   <rect x="336" y="492" width="288" height="76" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
   <circle cx="610" cy="508" r="4" fill="#2b7cd3"/>
@@ -122,7 +118,7 @@
 
   <rect x="696" y="214" width="368" height="60" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
   <circle cx="710" cy="230" r="4" fill="#2b7cd3"/>
-  <text x="724" y="234" font-size="11.8" font-weight="700" fill="#1a4b8c">证据切片与双源对齐</text>
+  <text x="724" y="234" font-size="11.8" font-weight="700" fill="#1a4b8c">证据切片（阶段 1 一级产出）</text>
   <text x="710" y="252" font-size="10.2" fill="#3a4a5c">归属：日志打标（DUT 标识 · 用例边界标志 · 时间戳）</text>
   <text x="710" y="268" font-size="10.2" fill="#3a4a5c">选取：起始段 + 失败邻域段 + 收尾段 · 事件过滤 · 模板归并</text>
 
@@ -203,7 +199,7 @@
   <text x="1498" y="712" text-anchor="end" font-size="10.4" fill="#5b8fd6">双闸门评估 · 灰度发布 · 一键回滚</text>
 
   <rect x="338" y="728" width="281" height="84" rx="9" fill="#ffffff" stroke="#c9dcf3"/>
-  <text x="352" y="750" font-size="11.4" font-weight="700" fill="#16324f">一级初筛规则库</text>
+  <text x="352" y="750" font-size="11.4" font-weight="700" fill="#16324f">初筛规则库</text>
   <text x="352" y="771" font-size="9.8" fill="#7b8fa5">确认结论蒸馏而成</text>
   <text x="352" y="787" font-size="9.8" fill="#7b8fa5">零 AI 快路径</text>
   <text x="352" y="803" font-size="9.8" fill="#7b8fa5">命中率持续上升</text>
@@ -269,6 +265,16 @@
   <line x1="272" y1="326" x2="316" y2="326" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
   <text x="294" y="306" text-anchor="middle" font-size="9.6" fill="#2b7cd3">双源供料</text>
   <text x="294" y="319" text-anchor="middle" font-size="9.6" fill="#2b7cd3">+ 测试代码</text>
+
+  <!-- 检视结果回传：系统 → 平台内嵌前端（AI 分析 Tab） -->
+  <line x1="300" y1="712" x2="276" y2="712" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
+  <text x="294" y="692" text-anchor="middle" font-size="9.6" fill="#2b7cd3">检视结果</text>
+  <text x="294" y="705" text-anchor="middle" font-size="9.6" fill="#2b7cd3">回传</text>
+
+  <!-- 人工反馈回流：平台前端 → 阶段 3（走顶部走廊，避开主链与回流箭头） -->
+  <path d="M 256 766 L 264 766 L 264 148 L 1526 148 L 1526 500 L 1504 500" fill="none"
+        stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
+  <text x="900" y="144" text-anchor="middle" font-size="9.6" fill="#2b7cd3">人工反馈回流（采纳 / 纠正 / 驳回）→ 阶段 3</text>
 
   <line x1="640" y1="254" x2="676" y2="254" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
   <text x="658" y="232" text-anchor="middle" font-size="9.6" fill="#2b7cd3">证据切片</text>
