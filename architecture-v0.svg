@@ -20,7 +20,7 @@
   <text x="780" y="70" text-anchor="middle" font-size="12.5" fill="#5b7794">平台双向对接（供料：pytest 用例日志 + 固件串口日志 / 回传：检视结果）→ 漏斗降噪 → 切片与多源对齐 → 代码×日志×环境×历史 联合诊断 → 分级通知与人工反馈 → 知识资产沉淀，反哺初筛与判定</text>
 
   <!-- ================= 平台侧 ================= -->
-  <rect x="24" y="92" width="248" height="728" rx="14" fill="#e9f1fb" stroke="#b9d4f0" stroke-width="1.5"/>
+  <rect x="24" y="92" width="248" height="748" rx="14" fill="#e9f1fb" stroke="#b9d4f0" stroke-width="1.5"/>
   <text x="148" y="122" text-anchor="middle" font-size="14" font-weight="700" fill="#16324f">Aitest 自动化测试平台</text>
   <text x="148" y="141" text-anchor="middle" font-size="12" fill="#5b7794">（外部对接 · 双向数据通道）</text>
 
@@ -36,7 +36,7 @@
 
   <rect x="40" y="338" width="216" height="76" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
   <text x="54" y="366" font-size="12.4" font-weight="600" fill="#16324f">固件串口日志</text>
-  <text x="54" y="386" font-size="10.2" fill="#3a4a5c">多用例混流 · 设备级</text>
+  <text x="54" y="386" font-size="10.2" fill="#3a4a5c">多用例混流 · 设备级 · 可打标</text>
   <text x="54" y="404" font-size="10.2" fill="#3a4a5c">错误码 · 复位 · 链路事件</text>
 
   <rect x="40" y="422" width="216" height="76" rx="9" fill="#ffffff" stroke="#d3e4f7"/>
@@ -63,8 +63,9 @@
   <text x="54" y="754" font-size="10.2" fill="#3a4a5c">责任域 · 置信度 · 处置建议</text>
   <text x="54" y="770" font-size="10.2" fill="#2b7cd3">反馈采纳入口 · 回流阶段 3</text>
 
-  <text x="148" y="796" text-anchor="middle" font-size="10" fill="#7b8fa5">本系统不修改平台代码与平台数据，</text>
-  <text x="148" y="812" text-anchor="middle" font-size="10" fill="#7b8fa5">检视结果经内嵌前端在平台侧展示</text>
+  <text x="148" y="790" text-anchor="middle" font-size="10" fill="#7b8fa5">本系统不修改平台代码与平台数据，</text>
+  <text x="148" y="806" text-anchor="middle" font-size="10" fill="#7b8fa5">检视结果经内嵌前端在平台侧展示</text>
+  <text x="148" y="826" text-anchor="middle" font-size="9.5" fill="#7b8fa5">日志打标（版本 · DUT · 边界标志）需上游配合</text>
 
   <!-- ================= 系统壳 ================= -->
   <rect x="300" y="92" width="1236" height="940" rx="16" fill="#ffffff" stroke="#2b7cd3" stroke-width="2"/>
@@ -122,8 +123,8 @@
   <rect x="696" y="214" width="368" height="60" rx="9" fill="#ffffff" stroke="#5b8fd6" stroke-dasharray="5 3"/>
   <circle cx="710" cy="230" r="4" fill="#2b7cd3"/>
   <text x="724" y="234" font-size="11.8" font-weight="700" fill="#1a4b8c">证据切片与双源对齐</text>
-  <text x="710" y="252" font-size="10.2" fill="#3a4a5c">归属：盘标识 + 用例边界事件（无时间戳时降级）</text>
-  <text x="710" y="268" font-size="10.2" fill="#3a4a5c">裁剪：失败锚点 ± 邻域窗口 · 事件过滤 · 模板归并</text>
+  <text x="710" y="252" font-size="10.2" fill="#3a4a5c">归属：日志打标（DUT 标识 · 用例边界标志 · 时间戳）</text>
+  <text x="710" y="268" font-size="10.2" fill="#3a4a5c">选取：失败邻域段 + 用例收尾段 · 事件过滤 · 模板归并</text>
 
   <rect x="696" y="282" width="368" height="68" rx="10" fill="#2b7cd3"/>
   <text x="880" y="306" text-anchor="middle" font-size="13.6" font-weight="700" fill="#ffffff">AI 深度诊断引擎（Qoder）</text>
