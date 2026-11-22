@@ -1,7 +1,7 @@
 # 智溯（AITrace）—— 自动化失败用例 AI 分析进化系统架构方案
 
 > 版本：V1（2026-11-22 新方案，V0 初稿架构已清空重设计）
-> 配套全景架构图：[`architecture-v1.png`](../../../architecture-v1.png)
+> 配套全景架构图：[`architecture-v1.svg`](../../../architecture-v1.svg) · [`architecture-v1.png`](../../../architecture-v1.png) · [`architecture-v1.html`](../../../architecture-v1.html)（矢量源 / 位图 / 在线查看器）
 
 ---
 
@@ -72,7 +72,7 @@ flowchart LR
     C6 -. "指标统计" .-> D5
 ```
 
-**全景架构图**：[`architecture-v1.png`](../../../architecture-v1.png)
+**全景架构图**：[`architecture-v1.svg`](../../../architecture-v1.svg) · [`architecture-v1.png`](../../../architecture-v1.png) · [`architecture-v1.html`](../../../architecture-v1.html)
 
 ---
 
@@ -253,7 +253,12 @@ flowchart LR
 
 ![智溯（AITrace）全景架构图](../../../architecture-v1.png)
 
-图源：[`architecture-v1.png`](../../../architecture-v1.png)（1024 × 572 PNG）
+| 文件 | 规格 | 用途 |
+|---|---|---|
+| [`architecture-v1.svg`](../../../architecture-v1.svg) | 1820 × 1164 矢量 | 可编辑、可无损缩放的唯一图源 |
+| [`architecture-v1.png`](../../../architecture-v1.png) | 3640 × 2328（2× 渲染） | 文档内嵌与评审投屏 |
+| [`architecture-v1.html`](../../../architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接打开浏览 |
+| [`2026-11-22-aitrace-design-v1-mermaid.png`](2026-11-22-aitrace-design-v1-mermaid.png) | 1024 × 572 | 原始方案配图（由 §2 mermaid 源码自动渲染） |
 
 ## 附录 B · 关键名词对照
 

@@ -11,7 +11,15 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 | 文档 | 内容 |
 |---|---|
 | [docs/superpowers/specs/2026-11-22-aitrace-design-v1.md](docs/superpowers/specs/2026-11-22-aitrace-design-v1.md) | V1 架构方案全文（系统定位 · 双向接口契约 · 阶段一至阶段三 · 安全红线） |
-| [architecture-v1.png](architecture-v1.png) | 全景架构图（1024 × 572 PNG；可编辑矢量源见设计文档 §2 mermaid 源码） |
+
+## 架构图
+
+| 文件 | 规格 | 用途 |
+|---|---|---|
+| [architecture-v1.svg](architecture-v1.svg) | 1820 × 1164 矢量 | 可编辑、可无损缩放的唯一图源 |
+| [architecture-v1.png](architecture-v1.png) | 3640 × 2328（2× 渲染） | 文档内嵌与评审投屏 |
+| [architecture-v1.html](architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接打开浏览 |
+| [mermaid 原图](docs/superpowers/specs/2026-11-22-aitrace-design-v1-mermaid.png) | 1024 × 572 | 原始方案配图，对应设计文档 §2 的 mermaid 源码 |
 
 ## 核心架构原则
 
