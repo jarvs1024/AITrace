@@ -72,7 +72,7 @@ flowchart LR
     C6 -. "指标统计" .-> D5
 ```
 
-**全景架构图**：[`architecture-v1.svg`](../../../architecture-v1.svg) · [`architecture-v1.png`](../../../architecture-v1.png) · [`architecture-v1.html`](../../../architecture-v1.html)
+**全景架构图**：[`architecture-v1.svg`](../../../architecture-v1.svg) · [`architecture-v1.png`](../../../architecture-v1.png) · [`architecture-v1.html`](../../../architecture-v1.html)（深色主题与详版见附录 A）
 
 ---
 
@@ -253,12 +253,34 @@ flowchart LR
 
 ![智溯（AITrace）全景架构图](../../../architecture-v1.png)
 
+### A.1 图件索引
+
 | 文件 | 规格 | 用途 |
 |---|---|---|
-| [`architecture-v1.svg`](../../../architecture-v1.svg) | 1820 × 1164 矢量 | 可编辑、可无损缩放的唯一图源 |
-| [`architecture-v1.png`](../../../architecture-v1.png) | 3640 × 2328（2× 渲染） | 文档内嵌与评审投屏 |
-| [`architecture-v1.html`](../../../architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接打开浏览 |
+| [`architecture-v1.svg`](../../../architecture-v1.svg) | 1920 × 1074 矢量 | **主图（浅色主题）· 唯一可编辑图源** |
+| [`architecture-v1.png`](../../../architecture-v1.png) | 3840 × 2148（2× 渲染） | 文档内嵌与评审投屏 |
+| [`architecture-v1.html`](../../../architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接浏览 |
+| [`architecture-v1-dark.svg`](../../../architecture-v1-dark.svg) | 1920 × 1074 矢量 | 深色主题 · 暗色环境投屏 |
+| [`architecture-v1-dark.png`](../../../architecture-v1-dark.png) | 3840 × 2148（2× 渲染） | 深色主题位图 |
+| [`architecture-v1-dark.html`](../../../architecture-v1-dark.html) | 内嵌 SVG 的查看器 | 深色主题查看器 |
+| [`architecture-v1-detail.svg`](../../../architecture-v1-detail.svg) | 1820 × 1164 矢量 | 详版：补充分析状态机、接口契约与安全红线 |
+| [`architecture-v1-detail.png`](../../../architecture-v1-detail.png) | 3640 × 2328（2× 渲染） | 详版位图 |
+| [`architecture-v1-detail.html`](../../../architecture-v1-detail.html) | 内嵌 SVG 的查看器 | 详版查看器 |
 | [`2026-11-22-aitrace-design-v1-mermaid.png`](2026-11-22-aitrace-design-v1-mermaid.png) | 1024 × 572 | 原始方案配图（由 §2 mermaid 源码自动渲染） |
+
+### A.2 配色体系（V1 视觉规范）
+
+主图与深色主题**结构完全一致**（四栏：aitest 平台 / 阶段一 / 阶段二 / 阶段三 + 三组列间箭头），仅重构色彩与图标语言：
+
+| 维度 | 规范 |
+|---|---|
+| 强调色 | 单一主色 `#2563EB`（蓝）+ 辅色 `#0EA5E9`（天蓝）+ 阶段色 `#4F46E5`（靛），全图不再引入第三个色相 |
+| 深色容器 | 统一带蓝调的深靛 `#101F3D`，替代原近黑藏蓝 `#071D4E`，保留明暗分区语义但消除割裂感 |
+| 浅色容器 | 面板改纯白底 + 顶部 4px 阶段色条 + 细描边，替代原大面积淡青蓝填充 |
+| 语义色 | 降饱和处理：成功 `#059669` / 警示 `#C2740A` / 危险 `#DC2626`，均以浅底药丸 + 深色文字呈现，替代原高饱和实色块 |
+| 渐变 | 删除原「蓝 → 青 → 橙」跨色相头条渐变，改为同色系纯色条（钉钉闭环蓝、运营看板靛） |
+| 图标 | 全部替换为统一线性描边图标（2px 圆角端点），替代原 emoji 与拟物图标混搭 |
+| 背景 | 叠加 48px 极淡网格底纹，增强空间秩序感 |
 
 ## 附录 B · 关键名词对照
 

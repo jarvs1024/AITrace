@@ -16,9 +16,15 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 
 | 文件 | 规格 | 用途 |
 |---|---|---|
-| [architecture-v1.svg](architecture-v1.svg) | 1820 × 1164 矢量 | 可编辑、可无损缩放的唯一图源 |
-| [architecture-v1.png](architecture-v1.png) | 3640 × 2328（2× 渲染） | 文档内嵌与评审投屏 |
+| [architecture-v1.svg](architecture-v1.svg) | 1920 × 1074 矢量 | **主图（浅色主题）· 唯一可编辑图源** |
+| [architecture-v1.png](architecture-v1.png) | 3840 × 2148（2× 渲染） | 文档内嵌与评审投屏 |
 | [architecture-v1.html](architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接打开浏览 |
+| [architecture-v1-dark.svg](architecture-v1-dark.svg) | 1920 × 1074 矢量 | 深色主题 · 暗色环境 / 投屏 |
+| [architecture-v1-dark.png](architecture-v1-dark.png) | 3840 × 2148（2× 渲染） | 深色主题位图 |
+| [architecture-v1-dark.html](architecture-v1-dark.html) | 内嵌 SVG 的查看器 | 深色主题查看器 |
+| [architecture-v1-detail.svg](architecture-v1-detail.svg) | 1820 × 1164 矢量 | 详版：补充状态机、接口契约与安全红线 |
+| [architecture-v1-detail.png](architecture-v1-detail.png) | 3640 × 2328（2× 渲染） | 详版位图 |
+| [architecture-v1-detail.html](architecture-v1-detail.html) | 内嵌 SVG 的查看器 | 详版查看器 |
 | [mermaid 原图](docs/superpowers/specs/2026-11-22-aitrace-design-v1-mermaid.png) | 1024 × 572 | 原始方案配图，对应设计文档 §2 的 mermaid 源码 |
 
 ## 核心架构原则
