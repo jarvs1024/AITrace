@@ -4,7 +4,7 @@
 
 AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest 负责自动化任务调度与执行，智溯负责失败用例的**智能追踪、根因定界与知识自进化**。业务聚焦 **SSD 与 CXL 硬件**自动化测试场景。
 
-![智溯（AITrace）全景架构图](architecture-v1.png)
+![智溯（AITrace）概要架构图](architecture-v1.png)
 
 ## 文档
 
@@ -16,12 +16,9 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 
 | 文件 | 规格 | 用途 |
 |---|---|---|
-| [architecture-v1.svg](architecture-v1.svg) | 1920 × 1074 矢量 | **主图（浅色主题）· 唯一可编辑图源** |
+| [architecture-v1.svg](architecture-v1.svg) | 1920 × 1074 矢量 | **概要图（深色主题）· 唯一可编辑图源** |
 | [architecture-v1.png](architecture-v1.png) | 3840 × 2148（2× 渲染） | 文档内嵌与评审投屏 |
 | [architecture-v1.html](architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接打开浏览 |
-| [architecture-v1-dark.svg](architecture-v1-dark.svg) | 1920 × 1074 矢量 | 深色主题 · 暗色环境 / 投屏 |
-| [architecture-v1-dark.png](architecture-v1-dark.png) | 3840 × 2148（2× 渲染） | 深色主题位图 |
-| [architecture-v1-dark.html](architecture-v1-dark.html) | 内嵌 SVG 的查看器 | 深色主题查看器 |
 | [architecture-v1-detail.svg](architecture-v1-detail.svg) | 1820 × 1164 矢量 | 详版：补充状态机、接口契约与安全红线 |
 | [architecture-v1-detail.png](architecture-v1-detail.png) | 3640 × 2328（2× 渲染） | 详版位图 |
 | [architecture-v1-detail.html](architecture-v1-detail.html) | 内嵌 SVG 的查看器 | 详版查看器 |
@@ -30,7 +27,7 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 ## 核心架构原则
 
 1. **系统独立解耦**——智溯独立部署，与 aitest 通过标准双向 API 完成任务投递、进度同步、结果回写与人工反馈闭环，对测试执行引擎零侵入。
-2. **高保真三段脱水 + AI 全权定界**——后端只做确定性加工（多源日志清洗、三段式切片、跨源时间轴对齐、精确指纹去重）；固件版本提取、根因分类与深度定界全权交由 Qoder AI 完成。
+2. **高保真三段脱水 + AI 全权定界**——后端只做确定性加工（多源日志清洗、三段式切片、跨源时间轴对齐、保守指纹去重）；固件版本提取、根因分类与深度定界全权交由 Qoder AI 完成。
 3. **多任务并行与用户令牌隔离**——「谁启动任务、用谁的 Qoder 令牌分析」，批次级四重隔离（凭证 / 沙箱 / 探针 / 知识库）。
 4. **两态极简反馈闭环**——钉钉群只做轻量告警，证据核验与反馈交互全部收口 aitest 详情页；反馈仅【采纳 / 不采纳（可附带修正）】两态。
 
@@ -38,7 +35,7 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 
 | 阶段 | 职责 | 关键机制 |
 |---|---|---|
-| **阶段一** 分源日志清洗、三段切片与时间对齐 | 把几十至数百 MB 的四路原始日志提纯为高信噪比联合上下文 | 四源专用脱水策略 · 前端基线 / 首错时间窗 / 末尾终态三段切片 · dmesg 与串口时间锚校准 · 零误杀精确指纹去重 |
+| **阶段一** 分源日志清洗、三段切片与时间对齐 | 把几十至数百 MB 的四路原始日志提纯为高信噪比联合上下文 | 四源专用脱水策略 · 前端基线 / 首错时间窗（四路取最早）/ 末尾终态三段切片 · dmesg 与串口时间锚校准 · 保守指纹去重（批内 · 保留计数） |
 | **阶段二** AI 全局分类与深度定界（Qoder SDK + 并发隔离池） | 提取硬件元数据、归类根因、构建可回溯证据链 | 主 Agent 批次全局统筹 · GitLab 源码核对 · 子 Agent 沙箱大日志深挖 · SSH 只读硬件探针 · Skills SOP 与 Memory 共享底座 |
 | **阶段三** 通知触达、两态进化与运营看板 | 触达工程师并驱动知识自进化 | 钉钉精简告警 · ADOPT 写入 Memory · REJECT+correction 反思蒸馏更新 Skills · REJECT 无修正隔离丢弃 · 三大看板视图 |
 
