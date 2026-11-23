@@ -80,10 +80,11 @@ flowchart LR
 
 ### 3.1 去向接口：任务与多源数据投递（aitest → 智溯）
 
-自动化测试批次结束或出现失败用例时，aitest 调用 `POST /api/v1/aitrace/tasks` 投递分析请求。鉴于 aitest 平台不维护被测盘的 FW 版本等底层硬件明细，接口仅传递基础环境拓扑与日志句柄，具体固件版本与设备属性由 AI 在分析阶段从日志及硬件探针中自主提取。
+自动化测试批次结束或出现失败用例时，aitest 调用 `POST /api/v1/aitrace/tasks` 投递分析请求。鉴于 aitest 平台不维护被测盘的 FW 版本等底层硬件明细，接口仅传递基础环境拓扑与日志句柄，具体固件版本与设备属性由 AI 在分析阶段从日志及硬件探针中自主提取。接口以 `project_id` 声明所属项目组，智溯据此装配项目画像（§8）；缺失时按默认画像处理。
 
 ```json
 {
+  "project_id": "ssd_alifsc",
   "batch_id": "BATCH-20261120-0089",
   "trigger_user_id": "zhangsan",
   "qoder_access_token": "<ENCRYPTED_USER_TOKEN>",
@@ -199,7 +200,7 @@ flowchart LR
 1. **凭证与权限隔离**：每个并发 Worker 仅在内存中动态注入当前批次启动人的 `qoder_access_token`，调用 Qoder SDK 时天然继承该用户的算力配额与代码库读取权限；任务结束立即销毁内存凭证句柄。
 2. **独立日志沙箱隔离**：当前批次的四路原始大日志与三段切片挂载至独占临时路径 `/tmp/aitrace_workspace/{batch_id}/`，子 Agent 的大日志检索工具严格锁定在当前沙箱目录内，任务归档后按 TTL 自动清理。
 3. **SSH 只读探针隔离**：探查 Linux 测试机时建立独立只读 SSH 会话并执行命令白名单；当多批次同时探查同一台测试机时，通过设备级轻锁与短时快照缓存防止并发命令干扰被测盘。
-4. **知识库读写分离**：并发分析期间，所有 Worker 并发只读共享的 Skills SOP 与 Memory；反馈触发知识进化写入时，统一进入串行更新队列并加锁提交，防止并发写冲突。
+4. **知识库读写分离**：并发分析期间，所有 Worker 并发只读本项目命名空间内的 Skills SOP 与 Memory（按项目画像 §8 隔离）；反馈触发知识进化写入时，统一进入串行更新队列并加锁提交，防止并发写冲突。
 
 ### 5.2 Qoder 主从协同推理与多维证据链
 
@@ -259,6 +260,55 @@ flowchart LR
 
 ---
 
+## 8. 多项目组自适应：项目画像（Project Profile）驱动
+
+智溯面向多个项目组共用：各项目的多源日志形态不同（日志源组合、格式与噪声特征各异），清洗规则、首错锚点关键词、切片参数存在差异，分析侧重（如 SSD 性能 / CXL 协议一致性 / 数据一致性）、提示词模板与 Skills 也各不相同。为此引入**项目画像（Project Profile）**：每个项目组维护一份声明式配置，阶段一与阶段二的全部可配置面均按画像动态装配；未配置画像（或投递未携带 `project_id`）时退化为 V1 单项目默认行为（§4 / §5 即默认画像）。
+
+### 8.1 项目画像字段定义
+
+| 字段 | 作用 | 说明 / 示例 |
+|---|---|---|
+| `project_id` | 项目全局唯一标识 | 如 `ssd_alifsc`、`cxl_pool_proto`；投递接口与全链路路由主键之一 |
+| `log_sources` | 声明本项目日志源组合及对应清洗插件 | 如仅 `[test, dmesg]` 两源，或四源全开 |
+| `cleaning_rules` | 分源清洗规则覆盖 | 噪声白名单、心跳折叠周期、性能采样降频间隔等 |
+| `anchor_keywords` | 首错锚点关键词（按源） | 串口 `ASSERT / PANIC / WATCHDOG / RESET` 等，可按项目固件日志风格扩展 |
+| `slice_params` | 三段式切片参数覆盖 | 前端基线行数、首错窗前后 60 s / 15 s、收尾行数 |
+| `analysis_focus` | 分析侧重声明 | 注入主 Agent 提示词，如「CXL 链路训练与协议一致性优先」 |
+| `prompt_template` | 项目级提示词模板 | 继承默认模板，仅覆盖差异段（角色背景 / 侧重声明 / 输出格式） |
+| `skills_namespace` | Skills 命名前缀 | `{project_id}_`，加载时按前缀过滤（见 §8.3） |
+| `memory_namespace` | Memory 命名空间 | 记忆键统一带 `project:{project_id}:` 前缀，跨项目互不可见 |
+| `root_cause_enum` | 根因闭集 | 默认继承五类闭集（§5.2），可按项目扩展子类枚举 |
+| `probe_whitelist` | SSH 探针命令白名单覆盖 | 如 CXL 项目追加 `cxl list` 系列只读命令 |
+
+### 8.2 按画像的三阶段装配
+
+- **阶段一（清洗与切片）**：按 `project_id` 加载对应画像，装配 `log_sources` 声明的清洗插件、`anchor_keywords` 锚点与 `slice_params` 切片参数，产出与默认形态同构的《多源三段式联合诊断摘要》。
+- **阶段二（AI 分类与定界）**：主 Agent 提示词 = 默认模板 ⊕ `prompt_template` 项目覆盖；Skills 按 `skills_namespace` 前缀过滤加载（本项目专属 + 全局通用），Memory 按 `memory_namespace` 隔离读写；根因归类取 `root_cause_enum`，SSH 探针执行 `probe_whitelist`。
+- **阶段三（反馈与看板）**：反馈进化写入对应项目的 Skills 前缀与 Memory 命名空间；运营看板支持按 `project_id` 维度聚合与下钻。
+
+### 8.3 Skills 命名与加载规范（扁平前缀制）
+
+Skills 目录保持扁平，**文件名自带项目 id 前缀**，不按项目建子目录：
+
+```text
+.qoder/skills/
+├── cxl_pool_proto_链路训练排查.md     ← 项目专属：{project_id}_ 前缀
+├── ssd_alifsc_掉盘现场核查.md         ← 项目专属
+└── common_三段式日志解读.md           ← 全局通用：common_ 前缀
+```
+
+- **加载规则**：按当前批次 `project_id` 过滤加载 `{project_id}_` 前缀技能，叠加全部 `common_`（或无前缀）通用技能；项目之间技能互不可见。
+- **进化规则**：不采纳（附修正）的反思蒸馏产物，按项目画像落为 `{project_id}_` 前缀 SOP 草案，仍走 §6.2 人工评审闸门。
+- **命名收益**：与团队既有 skill 前缀习惯一致；加载无需逐项目目录遍历；项目迁移 / 重命名只需批量改前缀。
+
+### 8.4 画像的创建与演进（AI 辅助 onboarding）
+
+- **接入新项目组**：投递 1~2 份该项目样本日志 → 智溯 AI 辅助生成画像草案（自动推断 `log_sources`、`anchor_keywords` 与 `analysis_focus`）→ 人工评审确认后生效，实现低代码接入。
+- **画像演进**：不采纳（附修正）反馈中反复出现的「漏看日志源 / 缺锚点关键词」类问题，可回流生成画像修订草案；与 SOP 草案一致，修订均需人工评审后合并，防止 AI 自改配置导致漂移。
+- **画像版本化**：画像变更保留版本记录，历史批次绑定其执行时的画像版本，保证证据链可回溯。
+
+---
+
 ## 附录 A · 概要架构图
 
 ![智溯（AITrace）概要架构图](../../../architecture-v1.png)
@@ -300,3 +350,4 @@ flowchart LR
 | 两态反馈 | 采纳（ADOPT）/ 不采纳（REJECT），后者可选附带 correction |
 | Skills SOP | `.qoder/skills/` 下的领域排障手册，由人工修正驱动的反思蒸馏更新 |
 | Memory 记忆库 | 项目级已采纳案例记忆库，并发只读、串行写入 |
+| 项目画像（Project Profile） | 每项目组一份的声明式配置，驱动日志源装配、清洗规则、锚点关键词、切片参数、提示词侧重、Skills / Memory 命名空间与根因枚举 |
