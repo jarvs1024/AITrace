@@ -267,8 +267,8 @@ flowchart LR
 
 | 文件 | 规格 | 用途 |
 |---|---|---|
-| [`architecture-v1.svg`](../../../architecture-v1.svg) | 1920 × 1074 矢量 | **概要图（深色主题）· 唯一可编辑图源** |
-| [`architecture-v1.png`](../../../architecture-v1.png) | 3840 × 2148（2× 渲染） | 文档内嵌与评审投屏 |
+| [`architecture-v1.svg`](../../../architecture-v1.svg) | 1920 × 1090 矢量 | **概要图（深色主题）· 唯一可编辑图源** |
+| [`architecture-v1.png`](../../../architecture-v1.png) | 3840 × 2180（2× 渲染） | 文档内嵌与评审投屏 |
 | [`architecture-v1.html`](../../../architecture-v1.html) | 内嵌 SVG 的查看器 | 浏览器中直接浏览 |
 | [`architecture-v1-detail.svg`](../../../architecture-v1-detail.svg) | 1820 × 1164 矢量 | 详版：补充分析状态机、接口契约与安全红线 |
 | [`architecture-v1-detail.png`](../../../architecture-v1-detail.png) | 3640 × 2328（2× 渲染） | 详版位图 |

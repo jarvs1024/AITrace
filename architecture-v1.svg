@@ -1,6 +1,5 @@
-<svg viewBox="0 0 1920 1074" width="1920" height="1074" xmlns="http://www.w3.org/2000/svg" font-family="'Outfit','PingFang SC','Microsoft YaHei',sans-serif">
+<svg viewBox="0 0 1920 1090" width="1920" height="1090" xmlns="http://www.w3.org/2000/svg" font-family="'Outfit','PingFang SC','Microsoft YaHei',sans-serif">
   <defs>
-    <linearGradient id="ag1" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#2A5D8F"/><stop offset="1" stop-color="#5B8DEF"/>
     </linearGradient>
     <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
@@ -19,8 +18,8 @@
       <polygon points="0 0, 8 3, 0 6" fill="#8FA2C0"/>
     </marker>
   </defs>
-<rect x="0" y="0" width="1920" height="1074" fill="#080D17"/>
-<rect x="0" y="0" width="1920" height="1074" fill="url(#grid)"/>
+<rect x="0" y="0" width="1920" height="1090" fill="#080D17"/>
+<rect x="0" y="0" width="1920" height="1090" fill="url(#grid)"/>
 <text x="960" y="82" text-anchor="middle" font-weight="700" font-size="40" fill="#E9EFFA">智溯（AITrace）—— 自动化失败用例 AI 分析进化系统概要架构图</text>
 <rect x="42" y="145" width="306" height="890" rx="20" fill="#0E1829" stroke="#1E2C46" stroke-width="1.6"/>
 <rect x="42" y="145" width="306" height="6" rx="3" fill="#5B8DEF"/>
@@ -43,10 +42,9 @@
 <text x="411" y="452" text-anchor="middle" font-weight="600" font-size="14" fill="#E6EDF9">投递日志/</text>
 <text x="411" y="472" text-anchor="middle" font-weight="600" font-size="14" fill="#E6EDF9">拓扑/用户</text>
 <text x="411" y="492" text-anchor="middle" font-weight="600" font-size="14" fill="#E6EDF9">Qoder令牌</text>
-<defs><linearGradient id="ag1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2A5D8F"/><stop offset="1" stop-color="#5B8DEF"/></linearGradient></defs>
 <path d="M356 516 L462 516" fill="none" stroke="#5B8DEF" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M1061 1035 L1061 1052 L195 1052 L195 976" fill="none" stroke="#5B8DEF" stroke-width="2.4" marker-end="url(#ar)"/>
-<text x="628" y="1045" text-anchor="middle" font-weight="600" font-size="14" fill="#E6EDF9">实时进度同步 &amp; 最终结果回写 → aitest 详情页</text>
+<text x="628" y="1068" text-anchor="middle" font-weight="600" font-size="14" fill="#E6EDF9">实时进度同步 &amp; 最终结果回写 → aitest 详情页</text>
 <rect x="474" y="145" width="305" height="890" rx="20" fill="#0E1829" stroke="#1E2C46" stroke-width="1.6"/>
 <rect x="474" y="145" width="305" height="6" rx="3" fill="#5B8DEF"/>
 <text x="626.5" y="190" text-anchor="middle" font-weight="700" font-size="21" fill="#E6EDF9">阶段一：分源清洗、</text>
