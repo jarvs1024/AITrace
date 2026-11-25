@@ -1,5 +1,7 @@
 # 知因（AITrace）—— 自动化失败用例 AI 分析进化系统架构方案
 
+> **已被取代（2026-11-25）**：本文档为历史存档，不再维护。唯一有效方案见 [`2026-11-25-aitrace-design-v1-final.md`](2026-11-25-aitrace-design-v1-final.md)（V1.0 定稿，已合并且已评审冻结）。本文档仅用于追溯旧决策，若与终稿冲突以终稿为准。
+
 > 版本：V1（2026-11-22 新方案，V0 初稿架构已清空重设计）
 > 配套概要架构图：[`architecture-v1.svg`](../../../architecture-v1.svg) · [`architecture-v1.png`](../../../architecture-v1.png) · [`architecture-v1.html`](../../../architecture-v1.html)（矢量源 / 位图 / 在线查看器）
 
