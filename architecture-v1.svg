@@ -28,7 +28,7 @@
 <g transform="translate(172.0,518) scale(1.9167)" fill="none" stroke="#5B8DEF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="6" rx="6" ry="2.4"/><path d="M3 6v5.6c0 1.3 2.7 2.4 6 2.4"/><path d="M3 11.6v5.6c0 1.3 2.7 2.4 6 2.4"/><circle cx="17.6" cy="8.6" r="2.3"/><path d="M13.8 19.4c0-2.1 1.7-3.8 3.8-3.8s3.8 1.7 3.8 3.8"/></g>
 <text x="195" y="602" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">case 失败实时投递 +</text>
 <text x="195" y="628" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">任务结束兜底 + 手动检视</text>
-<text x="195" y="654" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">多源日志/基础拓扑 &amp;</text>
+<text x="195" y="654" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">多源日志/权威环境 &amp;</text>
 <text x="195" y="680" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">启动人 Qoder 令牌</text>
 <text x="195" y="704" text-anchor="middle" font-weight="400" font-size="14" fill="#8FA2C0">（测试/串口/dmesg/调度日志）</text>
 <rect x="59" y="759" width="272" height="208" rx="14" fill="#15223A" stroke="#24365A" stroke-width="1.2" filter="url(#sh)"/>
@@ -52,10 +52,10 @@
 <text x="626" y="366" text-anchor="middle" font-weight="400" font-size="14" fill="#8FA2C0">（测试/串口/dmesg/调度）</text>
 <rect x="490" y="416" width="272" height="185" rx="14" fill="#15223A" stroke="#24365A" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(606,438) scale(1.6667)" fill="none" stroke="#5B8DEF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 6.8V12l3.4 2.1"/></g>
-<text x="626" y="510" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">三段式关键切片 &amp;</text>
+<text x="626" y="510" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">首错定位 · 三段式切片</text>
 <text x="626" y="536" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">跨源时间轴对齐</text>
 <text x="626" y="560" text-anchor="middle" font-weight="400" font-size="13.5" fill="#8FA2C0">（前端基线 / 首错时间窗 /</text>
-<text x="626" y="580" text-anchor="middle" font-weight="400" font-size="13.5" fill="#8FA2C0">末尾终态）</text>
+<text x="626" y="580" text-anchor="middle" font-weight="400" font-size="13.5" fill="#8FA2C0">末尾终态 · 小日志不切）</text>
 <rect x="490" y="617" width="272" height="150" rx="14" fill="#15223A" stroke="#24365A" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(606,640) scale(1.6667)" fill="none" stroke="#34D399" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M8.2 12.3l2.7 2.7 5-5.4"/></g>
 <text x="626" y="712" text-anchor="middle" font-weight="700" font-size="18.5" fill="#E6EDF9">保守指纹去重</text>
@@ -80,8 +80,9 @@
 <text x="1191" y="327" text-anchor="middle" font-weight="600" font-size="12.5" fill="#A9C0E4">并发 1/2/…</text>
 <rect x="856" y="428" width="406" height="118" rx="14" fill="#182843" stroke="#28406C" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(874,458) scale(1.6667)" fill="none" stroke="#5B8DEF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 5.6A4.2 4.2 0 0 0 8.4 8 3.6 3.6 0 0 0 7.4 14.4 3.6 3.6 0 0 0 11.6 18a3 3 0 0 0 3-3.2V8.6a3.2 3.2 0 0 0 0-3z"/><path d="M11.4 8.6a2.2 2.2 0 0 1 3.2 2"/><circle cx="17" cy="15.6" r="3.1"/><path d="M19.3 17.9l2.2 2.2"/></g>
-<text x="930" y="474" font-weight="700" font-size="17.5" fill="#E4EBF8">FW/硬件信息自动提取</text>
+<text x="930" y="474" font-weight="700" font-size="17.5" fill="#E4EBF8">aitest 权威信息采用</text>
 <text x="930" y="502" font-weight="400" font-size="14" fill="#93A4C4">&amp; 全局分类（主Agent）</text>
+<text x="930" y="530" font-weight="400" font-size="14" fill="#8FA2C0">全链路置信度（七维规则评分）</text>
 <rect x="856" y="546" width="406" height="118" rx="14" fill="#182843" stroke="#28406C" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(874,576) scale(1.6667)" fill="none" stroke="#5B8DEF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.6 6L3.5 12l4.1 6"/><path d="M16.4 6l4.1 6-4.1 6"/><path d="M13.6 4.4l-3.2 15.2"/><circle cx="17" cy="16.4" r="2.9"/><path d="M19.1 18.5l2 2"/></g>
 <text x="930" y="592" font-weight="700" font-size="17.5" fill="#E4EBF8">源码核对子 Agent</text>
@@ -96,8 +97,8 @@
 <text x="930" y="856" font-weight="400" font-size="14" fill="#93A4C4">（两段式引用 · 高优先级假设）</text>
 <rect x="856" y="900" width="406" height="118" rx="14" fill="#182843" stroke="#28406C" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(874,930) scale(1.6667)" fill="none" stroke="#5B8DEF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.6A2.6 2.6 0 0 1 6.6 3H19.4v14.6H6.6A2.6 2.6 0 0 0 4 20.2z"/><path d="M19.4 17.6V21H6.6A2.6 2.6 0 0 1 4 18.4"/><path d="M8.6 7.6h6.6M8.6 11h4.6"/></g>
-<text x="930" y="946" font-weight="700" font-size="17.5" fill="#E4EBF8">共享 Skills SOP &amp; 领域记忆库</text>
-<text x="930" y="974" font-weight="400" font-size="14" fill="#93A4C4">（并发只读 / 串行进化）</text>
+<text x="930" y="946" font-weight="700" font-size="17.5" fill="#E4EBF8">Skills SOP 方法库 &amp; 两级记忆</text>
+<text x="930" y="974" font-weight="400" font-size="14" fill="#93A4C4">（Skill + Agent + Memory · 并发只读 / 串行进化）</text>
 <path d="M1296 487 L1338 487" fill="none" stroke="#5B8DEF" stroke-width="2.4" marker-end="url(#ar)"/>
 <rect x="1343" y="145" width="525" height="890" rx="20" fill="#0F1B33" stroke="#22325A" stroke-width="1.6"/>
 <rect x="1343" y="145" width="525" height="6" rx="3" fill="#5B8DEF"/>
@@ -140,7 +141,7 @@
 <rect x="1360" y="712" width="495" height="303" rx="16" fill="#0E1A2E" stroke="#22335A" stroke-width="1.3"/>
 <path d="M1360 726 a14 14 0 0 1 14 -14 h467 a14 14 0 0 1 14 14 v49 h-495 z" fill="#31497E"/>
 <g transform="translate(1378,726) scale(1.2500)" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20.4V4"/><path d="M4 20.4h16.4"/><rect x="7" y="12" width="3.2" height="5.2" rx="1"/><rect x="12.4" y="8" width="3.2" height="9.2" rx="1"/><rect x="17.8" y="14" width="3.2" height="3.2" rx="1"/></g>
-<text x="1420" y="749" font-weight="700" font-size="17" fill="#EAF0FB">知因核心运营看板 (Dashboard)</text>
+<text x="1420" y="749" font-weight="700" font-size="17" fill="#EAF0FB">知因核心运营看板 (Dashboard) · aitest 平台页同源呈现</text>
 <g transform="translate(1812,726) scale(1.2500)" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 17.4a8.6 8.6 0 1 1 16.8 0"/><path d="M12 16.6l4-4.2"/><circle cx="12" cy="17.4" r="1.3"/></g>
 <rect x="1376" y="782" width="148" height="222" rx="14" fill="#15223A" stroke="#24365A" stroke-width="1.2" filter="url(#sh)"/>
 <g transform="translate(1417.0,806) scale(2.7500)" fill="none" stroke="#5B8DEF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6v8.4h8.4"/></g>
