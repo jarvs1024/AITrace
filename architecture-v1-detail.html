@@ -189,8 +189,8 @@
 <line x1="1568.0" y1="462" x2="1568.0" y2="486" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
 <line x1="1568.0" y1="566" x2="1568.0" y2="590" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
 <rect x="320" y="700" width="930" height="170" rx="12" fill="#f2f8ff" stroke="#2b7cd3" stroke-width="1.5" stroke-dasharray="7 4"/>
-<text x="785.0" y="728" text-anchor="middle" font-size="13.6" font-weight="700" fill="#1a4b8c">共享知识底座 · Skill + Agent + Memory 核心分析引擎（Skills SOP 方法库 + 两级记忆）</text>
-<text x="1232" y="728" text-anchor="end" font-size="10.4" fill="#5b8fd6">阶段二并发只读 · 反馈写入 DB 事务 upsert（原子提交）</text>
+<text x="785.0" y="724" text-anchor="middle" font-size="13.6" font-weight="700" fill="#1a4b8c">共享知识底座 · Skill + Agent + Memory 核心分析引擎</text>
+<text x="1236" y="744" text-anchor="end" font-size="9.4" fill="#5b8fd6">阶段二并发只读 · 反馈写入 DB 事务 upsert（原子提交）</text>
 <rect x="338" y="754" width="436" height="98" rx="9" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2"/>
 <text x="352" y="778" font-size="12.4" font-weight="700" fill="#16324f">Skills SOP 方法库（引擎关键组成）</text>
 <text x="352" y="798.0" font-size="9.8" fill="#3a4a5c">定义：日志分析方法 · Agent 调度 · 数据关联 · 定界判定</text>
@@ -201,53 +201,53 @@
 <text x="800" y="798.0" font-size="9.8" fill="#3a4a5c">① Qoder SDK 记忆：热记忆文件注入（Top N · maxTokens · best_effort）</text>
 <text x="800" y="812.2" font-size="9.8" fill="#3a4a5c">② 案例库：历史分析相似度案例参考 · 指纹索引 · 去重合并</text>
 <text x="800" y="826.4" font-size="9.8" fill="#7b8fa5">两段式引用：指纹预筛命中 → 工程师提示（仅方向）</text>
-<rect x="1270" y="700" width="506" height="170" rx="12" fill="#f4f7fc" stroke="#8a99b5" stroke-width="1.5" stroke-dasharray="7 4"/>
-<text x="1523.0" y="728" text-anchor="middle" font-size="13.6" font-weight="700" fill="#1a4b8c">知因核心运营看板  Dashboard · aitest 平台页同源呈现</text>
-<rect x="1288" y="754" width="470" height="98" rx="9" fill="#fbfcfe" stroke="#dfe4ec" stroke-width="1.2"/>
-<text x="1302" y="778.0" font-size="9.8" fill="#3a4a5c">① 诊断效能总览 · ② 按产品汇总（有效诊断率）</text>
-<text x="1302" y="792.2" font-size="9.8" fill="#3a4a5c">③ 失败根因分布与质量大盘 · ④ AI 结论有效率与知识资产</text>
-<text x="1302" y="806.4" font-size="9.8" fill="#3a4a5c">⑤ 实时监控台 · ⑥ 置信度分布与全链路质量 · 高危滚动告警</text>
-<text x="1302" y="820.6" font-size="9.8" fill="#7b8fa5">只读视图 · 经看板聚合接口供 aitest 拉取 · 不参与诊断判定与资产回写</text>
-<rect x="320" y="894" width="1456" height="130" rx="12" fill="#f7fbff" stroke="#d3e4f7" stroke-width="1"/>
+<rect x="1290" y="700" width="486" height="170" rx="12" fill="#f4f7fc" stroke="#8a99b5" stroke-width="1.5" stroke-dasharray="7 4"/>
+<text x="1533.0" y="724" text-anchor="middle" font-size="13.6" font-weight="700" fill="#1a4b8c">知因核心运营看板  Dashboard · aitest 平台页同源呈现</text>
+<rect x="1306" y="754" width="458" height="98" rx="9" fill="#fbfcfe" stroke="#dfe4ec" stroke-width="1.2"/>
+<text x="1320" y="778.0" font-size="9.8" fill="#3a4a5c">① 诊断效能总览 · ② 按产品汇总（有效诊断率）</text>
+<text x="1320" y="792.2" font-size="9.8" fill="#3a4a5c">③ 失败根因分布与质量大盘 · ④ AI 结论有效率与知识资产</text>
+<text x="1320" y="806.4" font-size="9.8" fill="#3a4a5c">⑤ 实时监控台 · ⑥ 置信度分布与全链路质量 · 高危滚动告警</text>
+<text x="1320" y="820.6" font-size="9.8" fill="#7b8fa5">只读视图 · 经看板聚合接口供 aitest 拉取 · 不参与诊断判定与资产回写</text>
+<rect x="320" y="894" width="1456" height="112" rx="12" fill="#f7fbff" stroke="#d3e4f7" stroke-width="1"/>
 <text x="1048.0" y="913" text-anchor="middle" font-size="12.6" font-weight="700" fill="#16324f">分析状态机（stage · 过程进度）· 实时进度回写 aitest  POST /api/v1/aitest/aitrace/status</text>
 <text x="1048.0" y="928" text-anchor="middle" font-size="11" font-weight="600" fill="#5b7794">轮次状态机（评价终态）· RUNNING → AWAITING_FEEDBACK → VALID / INVALID / FAILED（与 stage 分层 · §4.4.1）</text>
-<rect x="388" y="936" width="196" height="34" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
-<text x="486.0" y="950" text-anchor="middle" font-size="10.4" font-weight="700" fill="#16324f">QUEUED</text>
-<text x="486.0" y="963" text-anchor="middle" font-size="9.2" fill="#7b8fa5">10%</text>
-<line x1="586" y1="953" x2="606" y2="953" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
-<rect x="610" y="936" width="196" height="34" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
-<text x="708.0" y="950" text-anchor="middle" font-size="10.4" font-weight="700" fill="#16324f">CLEANING</text>
-<text x="708.0" y="963" text-anchor="middle" font-size="9.2" fill="#7b8fa5">30%</text>
-<line x1="808" y1="953" x2="828" y2="953" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
-<rect x="832" y="936" width="196" height="34" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
-<text x="930.0" y="950" text-anchor="middle" font-size="10.4" font-weight="700" fill="#16324f">AI_CLASSIFYING</text>
-<text x="930.0" y="963" text-anchor="middle" font-size="9.2" fill="#7b8fa5">50%</text>
-<line x1="1030" y1="953" x2="1050" y2="953" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
-<rect x="1054" y="936" width="196" height="34" rx="8" fill="#ffffff" stroke="#5b8fd6" stroke-width="1.2"/>
-<text x="1152.0" y="950" text-anchor="middle" font-size="10.4" font-weight="700" fill="#1a4b8c">DEEP_PROBING</text>
-<text x="1152.0" y="963" text-anchor="middle" font-size="9.2" fill="#7b8fa5">75%</text>
-<line x1="1252" y1="953" x2="1272" y2="953" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
-<rect x="1276" y="936" width="196" height="34" rx="8" fill="#ffffff" stroke="#5b8fd6" stroke-width="1.2"/>
-<text x="1374.0" y="950" text-anchor="middle" font-size="10.4" font-weight="700" fill="#1a4b8c">COMPLETED</text>
-<text x="1374.0" y="963" text-anchor="middle" font-size="9.2" fill="#7b8fa5">100%</text>
-<rect x="1498" y="978" width="196" height="34" rx="8" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2" stroke-dasharray="4 3"/>
-<text x="1596.0" y="992" text-anchor="middle" font-size="10.4" font-weight="700" fill="#d94a3d">FAILED</text>
-<text x="1596.0" y="1005" text-anchor="middle" font-size="9.2" fill="#7b8fa5">无授权 / 重试超限 / 终态异常</text>
-<path d="M 390 974 L 1596 974" fill="none" stroke="#2b7cd3" stroke-width="1.8"/>
-<line x1="1596" y1="974" x2="1596" y2="976" stroke="#d94a3d" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#r)"/>
-<text x="1596.0" y="968" text-anchor="middle" font-size="9.2" fill="#d94a3d">任一阶段异常 → 一键重新触发</text>
-<rect x="320" y="1038" width="1456" height="110" rx="12" fill="#fdf7f6" stroke="#e8b9b3" stroke-width="1"/>
-<text x="1048.0" y="1064" text-anchor="middle" font-size="12.6" font-weight="700" fill="#d94a3d">安全与合规 · 三条红线（§7.2 / §9）</text>
-<rect x="338" y="1078" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
-<text x="352" y="1102" font-size="11.6" font-weight="700" fill="#d94a3d">令牌安全红线</text>
-<text x="352" y="1118.0" font-size="8.8" fill="#3a4a5c">投递不带令牌；派发前 JIT 拉取，仅任务执行期驻留内存；</text>
-<text x="352" y="1130.0" font-size="8.8" fill="#3a4a5c">严禁落库 / 落队列 / 落日志；可恢复失效暂停队列，404/403 仅失败当前任务。</text>
-<rect x="812" y="1078" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
-<text x="826" y="1102" font-size="11.6" font-weight="700" fill="#d94a3d">硬件探查安全红线</text>
-<text x="826" y="1122.0" font-size="9.6" fill="#3a4a5c">SSH 探针严格受限只读命令白名单；严禁写盘、format、reset 与固件刷写等破坏性操作。</text>
-<rect x="1286" y="1078" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
-<text x="1300" y="1102" font-size="11.6" font-weight="700" fill="#d94a3d">运行时约束红线</text>
-<text x="1300" y="1122.0" font-size="9.6" fill="#3a4a5c">Qoder SDK Memory 仅本地 CLI runtime 生效；编排固定本地 runtime；主机凭据 Secret/KMS 引用。</text>
+<rect x="388" y="934" width="196" height="32" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="486.0" y="947" text-anchor="middle" font-size="10.2" font-weight="700" fill="#16324f">QUEUED</text>
+<text x="486.0" y="959" text-anchor="middle" font-size="8.8" fill="#7b8fa5">10%</text>
+<line x1="586" y1="950" x2="606" y2="950" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
+<rect x="610" y="934" width="196" height="32" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="708.0" y="947" text-anchor="middle" font-size="10.2" font-weight="700" fill="#16324f">CLEANING</text>
+<text x="708.0" y="959" text-anchor="middle" font-size="8.8" fill="#7b8fa5">30%</text>
+<line x1="808" y1="950" x2="828" y2="950" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
+<rect x="832" y="934" width="196" height="32" rx="8" fill="#ffffff" stroke="#d3e4f7" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="930.0" y="947" text-anchor="middle" font-size="10.2" font-weight="700" fill="#16324f">AI_CLASSIFYING</text>
+<text x="930.0" y="959" text-anchor="middle" font-size="8.8" fill="#7b8fa5">50%</text>
+<line x1="1030" y1="950" x2="1050" y2="950" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
+<rect x="1054" y="934" width="196" height="32" rx="8" fill="#ffffff" stroke="#5b8fd6" stroke-width="1.2"/>
+<text x="1152.0" y="947" text-anchor="middle" font-size="10.2" font-weight="700" fill="#1a4b8c">DEEP_PROBING</text>
+<text x="1152.0" y="959" text-anchor="middle" font-size="8.8" fill="#7b8fa5">75%</text>
+<line x1="1252" y1="950" x2="1272" y2="950" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
+<rect x="1276" y="934" width="196" height="32" rx="8" fill="#ffffff" stroke="#5b8fd6" stroke-width="1.2"/>
+<text x="1374.0" y="947" text-anchor="middle" font-size="10.2" font-weight="700" fill="#1a4b8c">COMPLETED</text>
+<text x="1374.0" y="959" text-anchor="middle" font-size="8.8" fill="#7b8fa5">100%</text>
+<rect x="1498" y="974" width="196" height="26" rx="8" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="1510.0" y="991.5" font-size="9.8" font-weight="700" fill="#d94a3d">FAILED</text>
+<text x="1558.0" y="991.5" font-size="8.2" fill="#7b8fa5">无授权 / 重试超限 / 终态异常</text>
+<path d="M 390 970 L 1480 970" fill="none" stroke="#2b7cd3" stroke-width="1.8"/>
+<path d="M 1480 970 L 1490 970 L 1490 987 L 1497 987" fill="none" stroke="#d94a3d" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#r)"/>
+<text x="1606.0" y="962" text-anchor="middle" font-size="8.8" fill="#d94a3d">任一阶段异常 → 一键重新触发</text>
+<rect x="320" y="1020" width="1456" height="100" rx="12" fill="#fdf7f6" stroke="#e8b9b3" stroke-width="1"/>
+<text x="1048.0" y="1042" text-anchor="middle" font-size="12.6" font-weight="700" fill="#d94a3d">安全与合规 · 三条红线（§7.2 / §9）</text>
+<rect x="338" y="1052" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
+<text x="352" y="1074" font-size="11.4" font-weight="700" fill="#d94a3d">令牌安全红线</text>
+<text x="352" y="1089.0" font-size="8.6" fill="#3a4a5c">投递不带令牌；派发前 JIT 拉取，仅任务执行期驻留内存；</text>
+<text x="352" y="1101.0" font-size="8.6" fill="#3a4a5c">严禁落库 / 落队列 / 落日志；可恢复失效暂停队列，404/403 仅失败当前任务。</text>
+<rect x="812" y="1052" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
+<text x="826" y="1074" font-size="11.4" font-weight="700" fill="#d94a3d">硬件探查安全红线</text>
+<text x="826" y="1094.0" font-size="9.4" fill="#3a4a5c">SSH 探针严格受限只读命令白名单；严禁写盘、format、reset 与固件刷写等破坏性操作。</text>
+<rect x="1286" y="1052" width="460" height="56" rx="9" fill="#ffffff" stroke="#d94a3d" stroke-width="1.2"/>
+<text x="1300" y="1074" font-size="11.4" font-weight="700" fill="#d94a3d">运行时约束红线</text>
+<text x="1300" y="1094.0" font-size="9.4" fill="#3a4a5c">Qoder SDK Memory 仅本地 CLI runtime 生效；编排固定本地 runtime；主机凭据 Secret/KMS 引用。</text>
 <line x1="274" y1="268" x2="336" y2="268" stroke="#2b7cd3" stroke-width="2" marker-end="url(#b)"/>
 <text x="299" y="250" text-anchor="middle" font-size="8.8" fill="#2b7cd3">投递载荷</text>
 <text x="299" y="262" text-anchor="middle" font-size="8.8" fill="#2b7cd3">发起人标识</text>
@@ -260,8 +260,10 @@
 <path d="M 1304 580 L 1330 580 L 1330 250 L 1376 250" fill="none" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
 <path d="M 1400 462 L 1346 462" fill="none" stroke="#5b8fd6" stroke-width="1.8" stroke-dasharray="5 3"/>
 <path d="M 1376 540 L 1346 540" fill="none" stroke="#5b8fd6" stroke-width="1.8" stroke-dasharray="5 3"/>
+<rect x="1252" y="686" width="16" height="11" fill="#ffffff"/>
 <path d="M 1346 462 L 1346 692 L 1230 692 L 1230 700" fill="none" stroke="#5b8fd6" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#bd)"/>
-<line x1="1250" y1="803" x2="1266" y2="803" stroke="#98a4b8" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#g)"/>
+<line x1="1266" y1="803" x2="1289" y2="803" stroke="#98a4b8" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#g)"/>
+<text x="1277.5" y="795" text-anchor="middle" font-size="8.4" fill="#98a4b8">只读</text>
 <path d="M 262 520 L 270 520 L 270 148 L 1790 148 L 1790 616 L 1766 616" fill="none" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
 <path d="M 1790 380 L 1766 380" fill="none" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
 <path d="M 1790 526 L 1766 526" fill="none" stroke="#2b7cd3" stroke-width="1.8" marker-end="url(#b)"/>
