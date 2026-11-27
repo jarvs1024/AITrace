@@ -14,6 +14,7 @@ from aitrace.callback.worker import CallbackWorker
 from aitrace.cleaning.rules import RuleSet
 from aitrace.cleaning.worker import CleaningWorker
 from aitrace.core.settings import Settings, SettingsError
+from aitrace.knowledge.materialize import MemoryMaterializeWorker
 from aitrace.persistence.repositories.queue import QueueRepository
 from aitrace.scheduling.batch_close import close_batch_if_done
 from aitrace.scheduling.pause import abandon_stalled, recover_paused
@@ -92,3 +93,8 @@ def run_tick(session: Session, state: Any, owner: str) -> None:
         state.callback_worker.run_once(session, now, owner)
 
     close_batch_if_done(session, queue, ids, now)
+
+    # 独立队列：反馈闭环入队 MEMORY_MATERIALIZE，材料化热记忆文件（temp+rename 原子替换）
+    MemoryMaterializeWorker(queue).run_once(
+        session, data_dir=settings.storage.data_dir, owner=owner, now=now
+    )

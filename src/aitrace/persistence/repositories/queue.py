@@ -210,6 +210,29 @@ class QueueRepository:
     def _release_slot(self, queue_key: str, now: datetime) -> None:
         release_slot(self._session, queue_key, now)
 
+    def claim_generic(self, owner: str, now: datetime, task_type: TaskType) -> TaskQueueRow | None:
+        row = self._session.execute(
+            select(TaskQueue)
+            .where(
+                TaskQueue.queue_state == QueueState.PENDING,
+                TaskQueue.task_type == task_type,
+                TaskQueue.lease_until < now,
+                or_(TaskQueue.not_before.is_(None), TaskQueue.not_before <= now),
+                or_(TaskQueue.next_retry_at.is_(None), TaskQueue.next_retry_at <= now),
+            )
+            .order_by(TaskQueue.priority.asc(), TaskQueue.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        row.lease_owner = owner
+        row.lease_generation += 1
+        row.lease_until = now + self._lease
+        row.updated_at = now
+        self._session.flush()
+        return row
+
     def claim_callback(self, owner: str, now: datetime) -> TaskQueueRow | None:
         row = self._session.execute(
             select(TaskQueue)

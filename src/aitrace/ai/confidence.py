@@ -109,6 +109,9 @@ def compute_dims(
         reference_hit = 1.0
     elif reference.kind == "valid":
         reference_hit = 0.7
+    elif reference.kind == "observing":
+        # 观察期：只作参考方向，不加分（中性 0.5）
+        reference_hit = 0.5
     elif reference.kind == "conflict":
         reference_hit = 0.3
     else:

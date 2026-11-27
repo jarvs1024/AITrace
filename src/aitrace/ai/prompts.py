@@ -69,19 +69,18 @@ class AnalysisContext:
     batch_context: dict[str, Any] | None = None
 
 
+def _memory_line(m: dict[str, Any]) -> str:
+    text = m.get("correction") or m.get("ai_conclusion") or ""
+    suffix = "（观察期：仅作排查方向，不计入置信度）" if m.get("observing") else ""
+    return f"- 指纹 {m.get('stable_fingerprint', '?')}：{m.get('category', '?')} / {text}{suffix}"
+
+
 def build_master_prompt(ctx: AnalysisContext) -> str:
     categories = "、".join(ctx.profile.root_cause_enum)
     slices_text = "\n\n".join(f"[{window}]\n{content}" for window, content in ctx.slices.items())
     hints = ctx.hints or tuple()
     hint_block = "\n".join(f"- {h}" for h in hints) or "（无）"
-    memory_block = (
-        "\n".join(
-            f"- 指纹 {m.get('stable_fingerprint', '?')}：{m.get('category', '?')} / "
-            f"{m.get('correction', '') or m.get('ai_conclusion', '')}"
-            for m in ctx.memory_hits
-        )
-        or "（无）"
-    )
+    memory_block = "\n".join(_memory_line(m) for m in ctx.memory_hits) or "（无）"
     batch_block = "（实时单 case 分析，无批级上下文）"
     if ctx.batch_context is not None:
         batch_block = json.dumps(ctx.batch_context, ensure_ascii=False, indent=2)

@@ -37,9 +37,9 @@ from aitrace.ai.validate import (
 from aitrace.callback.enqueue import enqueue_progress, enqueue_result
 from aitrace.core.enums import QueueState, Stage
 from aitrace.core.settings import AISettings, AitestSettings
+from aitrace.knowledge.prescreen import MemoryHit, prescreen_case_library
 from aitrace.persistence.models import (
     Batch,
-    CaseLibrary,
     Profile,
     Report,
     Round,
@@ -185,7 +185,14 @@ class AIWorker:
             now,
         )
         artifacts = load_l1_artifacts(self._base_dir, task.session_id, task.round_no)
-        ctx = self._build_ctx(task, session_row, batch, artifacts, profile)
+        hit = prescreen_case_library(
+            session,
+            domain_id=session_row.domain_id,
+            stable_fingerprint=session_row.stable_fingerprint,
+            round_id=task.round_id,
+            now=now,
+        )
+        ctx = self._build_ctx(task, session_row, batch, artifacts, profile, hit)
         prompt = build_master_prompt(ctx)
         source_agent, probe_agent = build_subagent_configs(profile)
         events = self._stream(
@@ -241,7 +248,7 @@ class AIWorker:
             metrics=artifacts.metrics,
             summary=artifacts.summary,
             ai_stats=ai_stats,
-            reference=self._lookup_reference(session, task, session_row, batch),
+            reference=self._reference_from_hit(hit, batch),
             probing_done=probe_marker is not None,
             consistent=probe_marker,
         )
@@ -254,7 +261,7 @@ class AIWorker:
             hard_caps=caps,
             low_threshold=self._settings.low_confidence_threshold,
         )
-        self._persist(session, task, session_row, conclusion, scored, artifacts, now)
+        self._persist(session, task, session_row, conclusion, scored, artifacts, now, hit)
         queue.finish(
             task.task_id, task.lease_owner or "", task.lease_generation, QueueState.DONE, now
         )
@@ -342,6 +349,7 @@ class AIWorker:
         batch: Batch | None,
         artifacts: L1Artifacts,
         profile: DomainProfile,
+        hit: MemoryHit | None,
     ) -> AnalysisContext:
         batch_context = None
         if batch is not None:
@@ -350,6 +358,17 @@ class AIWorker:
                 "passed_count": len(batch.passed_cases or []),
                 "escalated": bool((batch.gate or {}).get("escalated")),
             }
+        memory_hits: tuple[dict[str, Any], ...] = ()
+        if hit is not None:
+            memory_hits = (
+                {
+                    "stable_fingerprint": session_row.stable_fingerprint,
+                    "category": hit.category,
+                    "correction": hit.correction,
+                    "ai_conclusion": hit.conclusion,
+                    "observing": hit.observing,
+                },
+            )
         return AnalysisContext(
             authoritative={
                 "product_id": task.product_id,
@@ -363,24 +382,18 @@ class AIWorker:
             slices=artifacts.slices,
             profile=profile,
             batch_context=batch_context,
+            memory_hits=memory_hits,
         )
 
-    def _lookup_reference(
-        self, session: Session, task: TaskQueue, session_row: SessionModel, batch: Batch | None
-    ) -> ReferenceHit:
-        if session_row.stable_fingerprint:
-            hit = session.execute(
-                select(CaseLibrary).where(
-                    CaseLibrary.domain_id == session_row.domain_id,
-                    CaseLibrary.stable_fingerprint == session_row.stable_fingerprint,
-                )
-            ).scalar_one_or_none()
-            if hit is not None:
-                if hit.correction:
-                    return ReferenceHit(kind="conflict")
-                if hit.entry_status == "active" or hit.confirm_count > 0:
-                    return ReferenceHit(kind="lesson")
-                return ReferenceHit(kind="valid")
+    def _reference_from_hit(self, hit: MemoryHit | None, batch: Batch | None) -> ReferenceHit:
+        if hit is not None:
+            if hit.observing:
+                return ReferenceHit(kind="observing")
+            if hit.correction:
+                return ReferenceHit(kind="conflict")
+            if hit.confirm_count > 0:
+                return ReferenceHit(kind="lesson")
+            return ReferenceHit(kind="valid")
         if batch is not None and not (batch.passed_cases or []):
             return ReferenceHit(kind="none", no_control=True)
         return ReferenceHit(kind="none")
@@ -407,10 +420,29 @@ class AIWorker:
         scored: ConfidenceResult,
         artifacts: L1Artifacts,
         now: datetime,
+        hit: MemoryHit | None,
     ) -> None:
         round_row = session.execute(
             select(Round).where(Round.round_id == task.round_id)
         ).scalar_one()
+        result: dict[str, Any] = {
+            "root_cause": {
+                "category": conclusion.category,
+                "detail": conclusion.detail,
+                "evidence": list(conclusion.evidence),
+            },
+            "solution": conclusion.solution,
+            "confidence": scored.score,
+            "gap_note": scored.gap_note,
+        }
+        if hit is not None:
+            result["reference"] = {
+                "stable_fingerprint": session_row.stable_fingerprint,
+                "category": hit.category,
+                "correction": hit.correction,
+                "observing": hit.observing,
+                "hits": hit.hits,
+            }
         report = Report(
             report_id=self._ids.new("RP"),
             round_id=round_row.round_id,
@@ -419,16 +451,7 @@ class AIWorker:
                 "symptom": conclusion.detail,
                 "env_topology": {"host_ip": (session_row.env_topology or {}).get("host_ip", "-")},
             },
-            result={
-                "root_cause": {
-                    "category": conclusion.category,
-                    "detail": conclusion.detail,
-                    "evidence": list(conclusion.evidence),
-                },
-                "solution": conclusion.solution,
-                "confidence": scored.score,
-                "gap_note": scored.gap_note,
-            },
+            result=result,
             confidence_breakdown=list(scored.breakdown),
             evidence=list(conclusion.evidence),
             referenced_logs=artifacts.referenced_logs,

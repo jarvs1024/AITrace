@@ -349,3 +349,88 @@ def test_worker_authexpired_fenced_retry_and_pause(db_session, tmp_path) -> None
     assert task.queue_state == QueueState.READY.value
     user_row = db_session.execute(select(UserQueue)).scalar_one()
     assert user_row.state == "PAUSED_AUTH"
+
+
+def _seed_case_library(
+    db_session,
+    *,
+    correction: str | None = None,
+    observation_hits: int = 9,
+    use_hits: int = 0,
+) -> None:
+    from aitrace.persistence.models import CaseLibrary
+
+    db_session.add(
+        CaseLibrary(
+            domain_id="enterprise",
+            stable_fingerprint="fp-a",
+            category="FW_DEFECT",
+            ai_conclusion="固件超时路径缺陷",
+            correction=correction,
+            evidence_summary="u0: timeout",
+            exact_fingerprints=["exact-fp-a"],
+            confirm_count=1,
+            use_hits=use_hits,
+            observation_hits=observation_hits,
+            entry_status="observing" if observation_hits < 5 else "lesson",
+            version=1,
+            updated_at=_NOW,
+        )
+    )
+    db_session.flush()
+
+
+def _ref_dim(report: Report) -> float:
+    return next(
+        b["score"] for b in report.confidence_breakdown if b["dimension"] == "reference_hit"
+    )
+
+
+def test_worker_prescreen_lesson_scores_reference_dim_and_annotates(db_session, tmp_path) -> None:
+    _task, base = _seed(db_session, tmp_path)
+    _seed_case_library(db_session)
+    window_hash = hashlib.sha256(
+        (base / "evidence/s1/round_1/error_window.txt").read_bytes()
+    ).hexdigest()
+    worker = _worker(db_session, _json_events(_ok_result(window_hash)), data_dir=base)
+    worker.run_once(db_session, _NOW, "ai-worker-1")
+    round_row = db_session.execute(select(Round).where(Round.round_id == "r1")).scalar_one()
+    report = db_session.get(Report, round_row.report_id)
+    assert _ref_dim(report) == 1.0
+    assert report.result["reference"]["stable_fingerprint"] == "fp-a"
+    assert report.result["reference"]["observing"] is False
+    from aitrace.persistence.models import CaseLibrary
+
+    lib = (
+        db_session.execute(select(CaseLibrary).where(CaseLibrary.stable_fingerprint == "fp-a"))
+        .scalars()
+        .one()
+    )
+    assert lib.use_hits == 1
+
+
+def test_worker_prescreen_observing_scores_neutral(db_session, tmp_path) -> None:
+    _task, base = _seed(db_session, tmp_path)
+    _seed_case_library(db_session, correction="初始化时序改为 T0+200ms", observation_hits=2)
+    window_hash = hashlib.sha256(
+        (base / "evidence/s1/round_1/error_window.txt").read_bytes()
+    ).hexdigest()
+    worker = _worker(db_session, _json_events(_ok_result(window_hash)), data_dir=base)
+    worker.run_once(db_session, _NOW, "ai-worker-1")
+    round_row = db_session.execute(select(Round).where(Round.round_id == "r1")).scalar_one()
+    report = db_session.get(Report, round_row.report_id)
+    assert _ref_dim(report) == 0.5
+    assert report.result["reference"]["observing"] is True
+
+
+def test_worker_prescreen_conflict_correction_keeps_conflict_kind(db_session, tmp_path) -> None:
+    _task, base = _seed(db_session, tmp_path)
+    _seed_case_library(db_session, correction="初始化时序改为 T0+200ms", observation_hits=7)
+    window_hash = hashlib.sha256(
+        (base / "evidence/s1/round_1/error_window.txt").read_bytes()
+    ).hexdigest()
+    worker = _worker(db_session, _json_events(_ok_result(window_hash)), data_dir=base)
+    worker.run_once(db_session, _NOW, "ai-worker-1")
+    round_row = db_session.execute(select(Round).where(Round.round_id == "r1")).scalar_one()
+    report = db_session.get(Report, round_row.report_id)
+    assert _ref_dim(report) == 0.3

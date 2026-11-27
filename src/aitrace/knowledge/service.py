@@ -410,10 +410,12 @@ class KnowledgeService:
         ).first()
         if existing is not None:
             return
+        # batch_id 需唯一：历史 DONE 行若复用固定值会撞 uq_task_batch 部分唯一索引
+        task_id = self._ids.new("T")
         queue.enqueue(
             NewTask(
-                task_id=self._ids.new("T"),
-                batch_id=f"MEM-{domain_id}",
+                task_id=task_id,
+                batch_id=task_id,
                 session_id=None,
                 round_id="",
                 round_no=0,
