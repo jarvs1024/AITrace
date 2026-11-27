@@ -897,15 +897,17 @@ SELECT * FROM task_queue
 
 **阶段二（定标）**：基于基线设定目标值并写入 §8.2 配置（可配阈值 + 超时熔断）。初始参考值：
 
-| 指标 | 初始目标 | 测量方式 |
-|---|---|---|
-| 投递受理确认 | P95 < 5s | 受理接口耗时直方图 |
-| 排队转清洗（QUEUED→CLEANING） | < 2min（全局队列未饱和） | stage 时间戳差 |
-| 清洗 + 切片（含日志下载） | < 1min/GB（按日志下载 + 清洗合计；大日志分桶） | 任务流水脱水指标 |
-| 令牌队列等待（READY→AI_RUNNING/JIT_FETCH） | **AI Worker 池未饱和时**，按同一用户前序积压分桶（D = AI 任务 P95 时长，初始 6min，M4 标定）：0 个 P95 < 1min；1–4 个 P95 ≤ 4×D；>4 个视为过载，按 M4 基线且不承诺；全局 P95 仅作趋势 | queue_state 时间戳差 |
-| 跨用户公平性 | **同一前序深度组内**（Worker 未饱和；0 个 / 1–2 个 / 3–4 个）`max(queue_p95_wait) - min(queue_p95_wait) ≤ 2 × D`；不同深度组不直接比较（0 与 4 个前序的绝对等待差本就可到 3×D） | 按 queue_key + 前序深度组聚合的等待分布 |
-| 单 case 端到端（投递→COMPLETED） | **AI Worker 池未饱和时**，前序积压 0：P95 < 15min；前序 1–4：P95 < 45min；批次全部任务完成 P95 < 60min；超出按分桶基线 | stage 时间戳差 |
-| 探针时效 | 探查间隔 ≤ 30min（≥ 阈值即降置信） | 探查时刻 - failed_at_utc |
+| 指标 | 初始目标 | 实测（P95，2026-11-27 快配） | 测量方式 |
+|---|---|---|---|
+| 投递受理确认 | P95 < 5s | 0.028s（burndown 8 批）/ 0.042s（fairness 3 用户），达标 | 受理接口耗时直方图 |
+| 排队转清洗（QUEUED→CLEANING） | < 2min（全局队列未饱和） | 22.6s（burndown）/ 11.8s（fairness），达标 | stage 时间戳差 |
+| 清洗 + 切片（含日志下载） | < 1min/GB（按日志下载 + 清洗合计；大日志分桶） | 快配未单独采集（harness 聚合口径为投递→CLEANING，见上行） | 任务流水脱水指标 |
+| 令牌队列等待（READY→AI_RUNNING/JIT_FETCH） | **AI Worker 池未饱和时**，按同一用户前序积压分桶（D = AI 任务 P95 时长，初始 6min，M4 标定）：0 个 P95 < 1min；1–4 个 P95 ≤ 4×D；>4 个视为过载，按 M4 基线且不承诺；全局 P95 仅作趋势 | 分桶 0.0s / 0.0s / 0.0s / 0.0s（fake AI 即时完成口径，真实阶梯待真实链标定） | queue_state 时间戳差 |
+| 跨用户公平性 | **同一前序深度组内**（Worker 未饱和；0 个 / 1–2 个 / 3–4 个）`max(queue_p95_wait) - min(queue_p95_wait) ≤ 2 × D`；不同深度组不直接比较（0 与 4 个前序的绝对等待差本就可到 3×D） | 同桶 gap 0.0s / 0.0s / 0.0s，达标 | 按 queue_key + 前序深度组聚合的等待分布 |
+| 单 case 端到端（投递→COMPLETED） | **AI Worker 池未饱和时**，前序积压 0：P95 < 15min；前序 1–4：P95 < 45min；批次全部任务完成 P95 < 60min；超出按分桶基线 | 前序 0：1.60s（burndown）/ 8.73s（fairness）；前序 1–4：22.63s / 10.75s；批次完成：23.86s / 12.19s，达标 | stage 时间戳差 |
+| 探针时效 | 探查间隔 ≤ 30min（≥ 阈值即降置信） | 快配未覆盖（harness 未接入探针段；探针语义由 M3 三态审计保证） | 探查时刻 - failed_at_utc |
+
+**M4 标定基线（2026-11-27 快配实测，M4 门禁 T9 复跑报告 2026-11-27T09:43Z，`--profile all --batches 8`）**：burndown 8/8、fairness 11/11 全部达标，**无未达标项**；背压 profile 实测投递 20 / 受理 10 / 429 `QUEUE_FULL` 10（retry_after P95 60s）。**限定词**：① 快配为 fake AI 即时完成口径（W=2、tick 1s）——令牌队列等待分桶 0.0s 与 e2e 短时延不代表真实模型链，AI 任务 P95 基线 D 保持初始 360s，待真实链（GLM-5.3-Flash）标定后再收敛（见 §8.2 调度参数）；② 清洗单项、探针时效、大日志分桶未在快配覆盖，不对外承诺实测值；③ 阶段一 20+ 真实批次采集仍是上线前必须完成的标定动作，快配仅作 harness 与目标对照验证。
 
 **分桶前提**：上述等待与端到端目标均以 AI Worker 池未饱和（全局可派发 READY 数 ≤ W）为前提；全局饱和时归入过载桶，只保证不丢任务、按队列轮转持续推进，不承诺 15 / 45min，按 §7.3 的 Worker 利用率与全局队列深度告警。**SLO 不计入** `PAUSED_AUTH` 暂停、`QUEUE_FULL` / `DISK_FULL` 拒收重试、aitest 日志 / 令牌接口不可用等外部依赖故障时段，这些时段按对应监控与恢复流程单独考核。
 
@@ -992,7 +994,7 @@ SELECT * FROM task_queue
 |---|---|
 | 服务基础 | 监听地址 / 端口、日志级别、时区（V1 固定单实例部署：本地 Qoder CLI runtime、L1/L2 本地盘、设备轻锁仍依赖单机；队列 / 槽位 / 案例库已 DB 化，具备多实例基础，见 §8.3） |
 | 存储 | PostgreSQL 连接（凭证走 Secret 引用）、任务租约时长、数据根 `AITRACE_DATA_DIR`（生产默认 `/var/lib/aitrace`）、L1/L2 根路径、磁盘配额与水位阈值、L1/L2 分级 TTL、附件单文件上限、DB 定期备份策略（异盘 / 异地）、备份演练周期 |
-| 调度池 | 清洗池并发 C、AI Worker 池上限 W、每令牌队列深度（默认 100）、全局队列深度（默认 500）、队列内优先级与 aging 阈值、任务租约时长（默认 10 分钟）、AI 硬超时、`PAUSED_AUTH` 退避序列与暂停上限（默认 6 小时）、回调合并节流窗口、**SLO 分桶参数（AI 任务 P95 基线 D、15/45/60min 目标）** |
+| 调度池 | 清洗池并发 C、AI Worker 池上限 W、每令牌队列深度（默认 100）、全局队列深度（默认 500）、队列内优先级与 aging 阈值、任务租约时长（默认 10 分钟）、AI 硬超时、`PAUSED_AUTH` 退避序列与暂停上限（默认 6 小时）、回调合并节流窗口、**SLO 分桶参数（AI 任务 P95 基线 D、15/45/60min 目标；M4 收敛：C=4、W=2、D=360s，依据见下方调度参数段）** |
 | 外部对接 | aitest 投递 / 回写 / 查询 API 地址、回调重试次数与退避、日志拉取与用例清单对账接口地址、投递幂等去重窗口 TTL、双向认证令牌、**令牌 JIT 拉取接口地址与限频**、通知配置缓存 TTL、钉钉默认兜底群 webhook、运维告警群 webhook（任务 FAILED / 水位预警 / 审计异常）、SLS 投递参数。**不设平台级 Qoder 兜底令牌**（§4.5.3） |
 | AI 编排 | Qoder SDK 端点、主 / 子 Agent 超时、GitLab 检索超时、指纹预筛候选数上限、低置信强制说明阈值（默认 0.5）、置信度封顶阈值（§4.2.3）、教训条目观察期命中次数（默认 5）、引用门槛置信度（默认 0.7） |
 | 业务画像 | 领域画像注册表（§3.4）：`domain_id ↔ product_ids` 映射、各领域画像参数与画像版本；聚合闸参数（截流规则表、批内 AI 分析预算上限、批级共因阈值、差异最大度量权重） |
@@ -1005,7 +1007,7 @@ SELECT * FROM task_queue
 - **启动强校验**：启动时对全量配置做 Schema 校验（类型 / 枚举 / 范围），并检查配置文件版本与领域画像版本可解析；非法项直接拒绝启动（fail fast）并输出具体字段与预期值，杜绝「带病配置跑一半才炸」。
 - **热更新收口**：明确白名单——仅限流阈值、告警开关、队列深度、W 等运行策略支持热更新；其余变更走正常发布流程，与代码变更同轨评审、可回滚。
 
-**调度参数**：清洗池并发 C、AI Worker 池上限 W、每令牌队列深度、全局队列深度、队列内优先级与 aging 阈值、`PAUSED_AUTH` 暂停上限与退避序列、任务租约时长与 AI 硬超时、回调合并节流窗口——全部配置化，W 与账号并发在 M4 标定后收敛。
+**调度参数**：清洗池并发 C、AI Worker 池上限 W、每令牌队列深度、全局队列深度、队列内优先级与 aging 阈值、`PAUSED_AUTH` 暂停上限与退避序列、任务租约时长与 AI 硬超时、回调合并节流窗口——全部配置化，W 与账号并发在 M4 标定后收敛。**M4 标定收敛值（2026-11-27 快配实测）**：**C=4 保持**（快配 8 批 × 3 例并行清洗下排队转清洗 P95 22.6s，吞吐量级达标）；**W=2 收敛为 V1 默认值**（快配以 W=2 实跑 burndown/fairness 全 SLO 达标、AI 槽位无等待——按「实测 W=2 更稳」裁定，扩容仅调配置不引入多进程，§8.4）；**D=360s 维持初始值**（快配为 fake AI 即时完成口径，队列等待阶梯全 0.0s，无法标定真实 AI 时长；待真实链阶段一标定后再收敛）；**15/45/60min 目标快配全达标**（e2e 前序 0 1.6s / 前序 1–4 22.6s、批次完成 23.9s；口径与限定词见 §7.1）。
 
 **红线**：DB / 钉钉 / SSH 主机 / GitLab 等凭证一律 Secret / KMS 引用，配置文件只存引用 key；生产通过 systemd `LoadCredential=`（`$CREDENTIALS_DIRECTORY`）或启动时从 KMS 拉取，`/etc/aitrace/aitrace.env` 仅放非敏感运行参数且权限 0600；`qoder_access_token` 不进任何配置体系、env 文件或 systemd 凭据文件（仅任务执行期内存驻留，见 §7.2）。
 
@@ -1414,6 +1416,16 @@ AITrace/
 5. **引用级联范围裁定**：同批同组引用注记改写与 `CITING_STALE`；`cited_version` 语义维持 M2（版本=被引用报告轮次的重诊次数+1）。
 6. **看板 hot_memory_hit_rate 口径**：以 `use_hits/完成轮次数` 近似（缺轮次级预筛日志），仅影响看板展示。
 7. **M3 验证结果（2026-11-27）**：`make verify` 全绿——`make lint` 清洁（mypy 90 源文件）· `make test` 341 passed（cov 95.05%）· `make contract` 26 passed · `make e2e` 4 passed；系统级 fake 链真实 HTTP 走查「投递 → COMPLETED(FW_DEFECT, 0.78) → 反馈 VALID → 案例库/热记忆物化 → 看板 case_count 0→1」，NOTIFY 三卡（诊断卡/高危卡 AER/终态卡 COMPLETED）经 mock `/__mock/cards` 捕获，浏览器实测控制台与看板新数据。执行裁定详见 M3 计划 Task 7/8 实施裁决与文末执行记录。
+
+**V1.2 实施修订（2026-11-27，M4 SLO/Ops 实施期回填）**：不改任何接口与调度语义，仅回填 M4 落地结论与门禁：
+
+1. **监控双载体落地**：进程内指标快照（计数/耗时/比例，无敏感值）+ 结构化 JSON 日志三本账一条 trace（任务流水阶段事件双落：指标 + `task_stage` 日志事件），看板⑥扩展实时监控台、`GET /api/v1/aitrace/monitor` 快照（§7.3 采集载体按此落地，仍不以 Prometheus 方式）。
+2. **水位背压实测**：受理侧三级约束（全局队列深度 / 单令牌深度 / L2 三级水位）实测触发 429 `QUEUE_FULL` / 507 `DISK_FULL`，中文错误含当前值/上限/retry_after；背压 profile 实测投递 20 / 受理 10 / 429 × 10（retry_after P95 60s）；FORCE 档逐出按 未评价→无效→有效 顺序且不碰 RUNNING 批次。
+3. **readyz 与启动自检**：`GET /api/v1/readyz` 200/503 语义 + 启动自检五查（DB、目录、凭据扫描、画像、迁移状态）+ SIGTERM 优雅排水实测；凭据扫描命中只回显文件名、HOME 命中仅警告不阻断。
+4. **备份 CLI + timer**：`aitrace-backup backup/restore/list`（pg_dump + SHA-256 digest 落盘 + 保留策略 + 非空目标 `--force` 门禁 + 空间不足零 dump）；真实恢复演练经 `pg_restore` 回灌测试库后集成测试全绿（演练门禁 `AITRACE_OPS_DRILL=1` + `TEST_DATABASE_URL` + pg_dump/pg_restore 在 PATH）；systemd `aitrace-backup.timer` 每日触发（§8.6）。
+5. **六步发布脚本**：`upgrade.sh` 预检→安装→停服→迁移→切换→启动→readyz 轮询，失败自动回滚、release 保留 3 个；`rollback.sh` 中文自解释报错。
+6. **perf 基线快配**：`make perf`（harness `tools/perf_harness.py`）`--profile all --batches 8` 实测 burndown 8/8、fairness 11/11 全达标，数值与限定词回填 §7.1「实测（P95）」列、C/W/D 收敛值回填 §8.2；受理 RTT 口径统一为秒（修复毫秒比秒级目标的虚假 MISS）；fake AI 口径下队列等待 0.0s，D=360s 维持待真实链标定。
+7. **ops/security 门禁固化**：`make test-security`（pytest 关键词集：token/probe/audit/whitelist/credential/startup/backup）与 `make ops`（tests/ops 资产 + 真实备份演练）写入 Makefile 并接 CI（verify job 追加两步）；`make verify` 保持既有四步不扩，perf 不进 CI（计时环境不适合每次 merge），发布前人工跑 security/ops/perf。
 
 ---
 

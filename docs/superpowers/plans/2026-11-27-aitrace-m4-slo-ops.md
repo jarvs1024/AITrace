@@ -684,25 +684,25 @@ git commit -m "feat(m4): make perf 标定harness（分桶等待/公平性/背压
 - Modify: `README.md`（M4 状态段 + perf/ops 命令说明）
 - Test: 无新代码测试（文档任务）；依赖 Task 1–8 全绿证据。
 
-- [ ] **Step 1: 更新 Makefile 与 CI（先红后绿——新增目标首跑必须可用）**
+- [x] **Step 1: 更新 Makefile 与 CI（先红后绿——新增目标首跑必须可用）**
 
 ```bash
 make test-security   # 期望：收集到 security 相关测试并全绿
 make ops             # 期望：tests/ops 资产+演练全绿（含 Task 6 drill）
 ```
 
-- [ ] **Step 2: 回填 SLO 基线与文档**
+- [x] **Step 2: 回填 SLO 基线与文档**
 
 以 `perf_report.json`（Task 8 快配实测）逐项填入 §7.1 表「实测（P95）」列即可，**不虚构数字**：只写实测值与「未达标项」标注；§8.2 回填 C/W/D 收敛值（若实测 W=2 更稳则记 W=2 并附依据）；附录 B 追加「V1.2 实施修订（2026-11-27，M4 SLO/Ops）」条目（监控双载体/水位背压/readyz 与自检/备份 CLI/timer/六步发布/perf 基线/ops 门禁）。
 
-- [ ] **Step 3: M4 里程碑门禁全绿**
+- [x] **Step 3: M4 里程碑门禁全绿**
 
 停常驻演示服务（门禁纪律）→ `make verify` → `make test-security` → `make ops` → `make perf`（快配）→ `make lint`；全部证据记录本计划文末「执行记录」。
 
-- [ ] **Step 4: 提交推送（用户已授权阶段 push）**
+- [x] **Step 4: 提交推送（用户已授权阶段 push）**
 
 ```bash
-git add Makefile .github/workflows/ci.yml docs/superpowers/specs/2026-11-25-aitrace-design-v1-final.md docs/superpowers/plans/2026-11-25-aitrace-v1-program.md README.md docs/superpowers/plans/2026-11-27-aitrace-m4-slo-ops.md
+git add Makefile .github/workflows/ci.yml docs/superpowers/specs/2026-11-25-aitrace-design-v1-final.md docs/superpowers/plans/2026-11-25-aitrace-v1-program.md README.md docs/superpowers/plans/2026-11-27-aitrace-m4-slo-ops.md report/slo-calibration.md
 git commit -m "docs(m4): M4 SLO/Ops 收尾——perf/ops/security门禁、CI接线、SLO基线回填与计划状态"
 git push
 ```
@@ -711,14 +711,14 @@ git push
 
 ## 验收清单（M4 Definition of Done）
 
-- [ ] `make verify` 全绿（lint / 冒烟测试含单测全量 / contract / e2e）；`make test-security`、`make ops`、`make perf`（快配）全绿且证据留档。
-- [ ] 结构化 JSON 日志与任务流水阶段事件可用一条 trace_id 全链检索；日志/告警/审计均不含令牌类字段。
-- [ ] 受理侧三级约束（全局队列深度 / 单令牌深度 / L2 水位）实测触发 429 `QUEUE_FULL`/507 `DISK_FULL`（中文错误含当前值/上限/retry_after）。
-- [ ] `/readyz` 200/503 语义、启动自检五查、优雅排水 smoke 通过；健康状况在 `upgrade.sh` 轮询中被消费。
-- [ ] 备份→校验→恢复演练完成：dump 生成、digest 落盘、`pg_restore` 成功、恢复后集成测试全绿。
-- [ ] `upgrade.sh` 六步顺序与失败回滚经 fake 测试断言；release 保留 3 个。
-- [ ] 标定报告 `report/slo-calibration.md` 回填 spec §7.1/§8.2，无虚构数字。
-- [ ] 程序计划 Execution Status M4 行 = DONE + 证据；本计划文末「执行记录」完整。
+- [x] `make verify` 全绿（lint / 冒烟测试含单测全量 / contract / e2e）；`make test-security`、`make ops`、`make perf`（快配）全绿且证据留档。
+- [x] 结构化 JSON 日志与任务流水阶段事件可用一条 trace_id 全链检索；日志/告警/审计均不含令牌类字段。
+- [x] 受理侧三级约束（全局队列深度 / 单令牌深度 / L2 水位）实测触发 429 `QUEUE_FULL`/507 `DISK_FULL`（中文错误含当前值/上限/retry_after）。
+- [x] `/readyz` 200/503 语义、启动自检五查、优雅排水 smoke 通过；健康状况在 `upgrade.sh` 轮询中被消费。
+- [x] 备份→校验→恢复演练完成：dump 生成、digest 落盘、`pg_restore` 成功、恢复后集成测试全绿。
+- [x] `upgrade.sh` 六步顺序与失败回滚经 fake 测试断言；release 保留 3 个。
+- [x] 标定报告 `report/slo-calibration.md` 回填 spec §7.1/§8.2，无虚构数字。
+- [x] 程序计划 Execution Status M4 行 = DONE + 证据；本计划文末「执行记录」完整。
 
 ## 执行记录（2026-11-27）
 
@@ -732,6 +732,7 @@ git push
 | T6 备份/恢复 | commit（见本轮提交）；tests/unit/test_backup.py 12 用例全绿（DSN 拆分密码只入 env、空间不足 SpaceShortageError 且零 dump、保留策略同删 digest、dump+digest+list 校验、推送失败保留 dump 并告警、非空目标拒绝/--force 放行、console 退出码 0/1/3）；tests/ops/test_backup_drill.py 2 用例真实 pg_dump/pg_restore 通过（AITRACE_OPS_DRILL=1 门禁）；CLI 演练：`aitrace-backup backup --staging /tmp/aitrace-backup-drill --keep 2` 产出 31119 字节 dump + SHA-256 digest，`restore --force` 恢复到测试库后 `make test-integration` 98 passed；`make verify` 全绿 |
 | T7 发布脚本 | commit（见本轮提交）；tests/ops/test_release_scripts.py 4 用例全绿 + tests/ops/test_deploy_assets.py 14 用例全绿（含 bash -n 与可执行位）；fake 树驱动六步链路：日志标记顺序 预检通过→安装完成→服务已停止→迁移完成→切换 current→服务已启动→readyz 通过，systemctl 调用顺序 stop→alembic→start；readyz 失败自动回滚（current 还原 v1、start×2、新 release 目录保留待人工核查）；保留策略 v1.1.0..v1.5.0 → 仅剩 1.3/1.4/1.5；rollback.sh 中文报错「目标版本目录不存在」；`make verify`：lint 全过、434 passed + 2 skipped + 26 contract + 4 e2e，coverage 94.49% |
 | T8 perf 标定 | commit（见本轮提交）；tests/perf/test_perf_math.py 8 用例全绿（最邻近等级分位/前序深度分桶/同桶公平 P95 差/summarize 秒级对照语义、缺失样本不虚构）；快配实跑 `--profile all --batches 8`（报告 2026-11-27T09:29Z）：burndown 8/8 达标（受理 P95 0.027s、排队转清洗 P95 22.6s、队列等待分桶 0.0/0.0/0.0/0.0、e2e 1.5/22.6s、批次完成 P95 23.8s、回调 24≥24）；fairness 11/11（受理 0.032s、清洗 11.6s、跨用户公平 gap 0.0/0.0/0.0、e2e 8.5/10.5s、批次 12.2s）；backpressure 投递 20/受理 10/429 QUEUE_FULL×10 retry_after P95 60s；2 批诊断跑 DB 复核：batch 全 COMPLETED、escalated 空、ai_used=3、task_queue 无 FAILED；实跑逼出三门产品缺陷并 TDD 修复（见裁决记录 T8）；`make lint` 全绿（ruff check/format + mypy 102 源文件），调度链集成测试 32 passed（含新增 3 用例） |
+| T9 门禁+SLO 回填 | commit（见本轮提交 `docs(m4)`）；停常驻演示服务（无 aitrace 演示进程在跑）后全门禁绿：`make verify`（lint 清洁 mypy 102 源文件 · 445 passed / 2 skipped（cov 94.43%）· contract 26 · e2e 4）· `make test-security` 41 passed / 44 skipped（203 deselected）· `make ops` 20 passed（含真实 pg_dump/pg_restore 演练）· `make perf` 快配复跑全绿（2026-11-27T09:43Z，报告 `/tmp/perf_report_t9.json`：burndown 8/8、fairness 11/11、backpressure 投递 20/受理 10/429×10 retry_after P95 60s）· `make lint` 全绿；spec §7.1「实测（P95）」列 + §8.2 C/W/D 收敛（C=4、W=2、D=360s）+ 附录 B M4 实施修订回填；`report/slo-calibration.md` 标定基线报告成文；program plan M4=DONE + README M4 状态段与「验证与运维命令」表 |
 
 裁决记录（T8）：
 - 受理 RTT 口径统一为秒（httpx 往返直接存秒并对照 §7.1 秒级目标）；此前毫秒数直接比秒级目标造成虚假 MISS（实测实为 15~32ms），p99 贴近 30 的「截尾」实为毫秒量级。
@@ -745,6 +746,15 @@ git push
   ① 路由丢弃迟到 READY 成员 → 成员永停 READY/会话卡 CLEANING/批次无法关账：迟到成员挂既有结论链（兄弟 leader 或 batch_common），leader 任务行缺失时报中文「同组首例任务行缺失，转人工复核」（tests/integration/test_router.py 新增 2 用例）。
   ② BATCH_COMMON 会话没有自己的清洗回合 → AI worker 加载 L1 崩溃：改引用批内最早完成清洗的成员 L1，无可用成员报中文终态错误 BATCH_REF_MISSING（tests/integration/test_ai_worker.py 新增 1 用例）。
   ③ mock 通知 webhook 默认端口无人监听 → 回调 Connection refused：harness 注入 `AITEST_MOCK_WEBHOOK_BASE` 指向 mock 实例。
+
+裁决记录（T9）：
+- **门禁先于回填**：计划 Step 2（回填）在 Step 3（门禁）之前，但文档数字必须是最新一次实测——改为先跑全门禁、用门禁产出的新鲜数字回填 spec/计划/README（最新证据优先，避免把 T8 旧数字写进单一真源；spec 表格按 09:43Z 复跑值定稿）。
+- **§7.1 只写实测、不虚构**：快配未覆盖的清洗单项、探针时效、大日志分桶、「>4 前序」过载桶在「实测」列写「快配未采集/未覆盖」；全部已测项达标 → 无未达标项（无需「未达标」标注）。
+- **C/W/D 收敛裁定**：C=4 保持；W 按计划「实测 W=2 更稳」收敛为 V1 默认值（harness 默认 `ai_workers=2` 实跑 burndown/fairness 全 SLO 达标、AI 槽位零等待）；D=360s 维持初始值（fake AI 即时完成 → 队列等待阶梯全 0.0s，无法标定真实 AI 时长；待有效令牌真实链阶段一标定）。
+- **附录 B 条目数裁定**：计划写「08–10 条」，实际按 7 项主题组织（监控双载体/水位背压/readyz 与自检/备份 CLI+timer/六步发布/perf 基线/ops 门禁），覆盖计划列举全部内容。
+- **perf 快配命令形态**：`make perf` 目标固定 `--profile all` 默认 20 批、输出 `report/perf_report.json`；快配以 harness 直跑 `--profile all --batches 8 --out <报告>`（参数名为 `--out` 而非 `--report`，README 与执行记录均按正确参数名记录）。
+- **`report/slo-calibration.md` 补账**：Task 8 Produces 曾列该文件但未成文——T9 以门禁实测值成文并纳入 Step 4 提交清单（计划 Step 4 git add 列表同步追加该文件；验收第 7 条借此闭环）。
+- **test-security 环境裁定**：目标依计划字面不注入 TEST_DATABASE_URL，44 skipped 含 3 例 startup 测试（无库环境跳过，drill 类由 make ops 单独覆盖）；不在本轮引入环境注入。
 
 裁决记录（T7）：
 - 升级前「当前服务 readyz」预检要求现网可探活，探活失败即中止（避免在服务已坏的状态上继续变更）；测试环境用 SVC_DOWN/SVC_BROKEN 标记驱动的假 curl 模拟服务生命周期。
