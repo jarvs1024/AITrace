@@ -19,6 +19,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from aitrace.probe.whitelist import GLOBAL_PROBE_WHITELIST
+
 
 class SettingsError(RuntimeError):
     """Raised when configuration is missing or invalid; the service must not start."""
@@ -73,6 +75,10 @@ _FIELD_LABELS = {
     "runtime": "运行时调度配置",
     "runtime.enabled": "运行时调度开关",
     "runtime.tick_seconds": "运行时调度周期",
+    "probe": "SSH 探针配置",
+    "probe.global_whitelist": "探针全局白名单",
+    "probe.connect_timeout_seconds": "探针连接超时",
+    "probe.command_timeout_seconds": "探针命令超时",
 }
 
 
@@ -143,6 +149,13 @@ class RuntimeSettings(BaseModel):
     tick_seconds: float = Field(default=1.0, ge=0.1, le=60)
 
 
+class ProbeSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    global_whitelist: list[str] = Field(default_factory=lambda: list(GLOBAL_PROBE_WHITELIST))
+    connect_timeout_seconds: int = Field(default=5, ge=1, le=60)
+    command_timeout_seconds: int = Field(default=10, ge=1, le=300)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="AITRACE_",
@@ -161,6 +174,7 @@ class Settings(BaseSettings):
     ai: AISettings = Field(default_factory=AISettings)
     aitest: AitestSettings = Field(default_factory=AitestSettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
+    probe: ProbeSettings = Field(default_factory=ProbeSettings)
 
     @model_validator(mode="after")
     def _resolve_secret_files(self) -> Self:
@@ -221,6 +235,7 @@ _SECTION_MODELS: dict[str, type[BaseModel]] = {
     "ai": AISettings,
     "aitest": AitestSettings,
     "runtime": RuntimeSettings,
+    "probe": ProbeSettings,
 }
 
 

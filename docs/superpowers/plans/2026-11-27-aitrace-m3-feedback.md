@@ -267,10 +267,17 @@
   ProbeDenied(ValueError): code="PROBE_FORBIDDEN"（命令不在白名单）
   ```
 - 审计哈希链沿用 `AuditService.append`。超时（runner 内 timeout=10s）→ `ProbeTimeout`。
-- [ ] **Step 1: 安全测试先行**（白名单拒绝 `reboot`/`nvme format`/`rm`/管道注入；允许 `nvme list`；画像交集空 → 拒绝；审计落库且哈希链 verify 通过；runner 记录超时）。
-- [ ] **Step 2: 跑红**。
-- [ ] **Step 3: 实现**（settings 增 `probe` 段 + `_FIELD_LABELS` 中文标签；`deploy/config/config.dev.yaml`/`config.prod.example.yaml` 同步示例）。
-- [ ] **Step 4: 跑绿 + `make lint`**。
+- [x] **Step 1: 安全测试先行**（白名单拒绝 `reboot`/`nvme format`/`rm`/管道注入；允许 `nvme list`；画像交集空 → 拒绝；审计落库且哈希链 verify 通过；runner 记录超时）。
+- [x] **Step 2: 跑红**。
+- [x] **Step 3: 实现**（settings 增 `probe` 段 + `_FIELD_LABELS` 中文标签；`deploy/config/config.dev.yaml`/`config.prod.example.yaml` 同步示例）。
+- [x] **Step 4: 跑绿 + `make lint`**（341 passed，覆盖 95.05%，mypy 90 文件无问题）。
+- **实施裁决**（红线⑧回写）：
+  1. 画像白名单沿用既有字段 `DomainProfile.probe_whitelist`（计划文本写 probe_commands，属笔误；M2 画像模型已带只读校验 `_FORBIDDEN_PROBE`）。
+  2. 交集语义实现：全局白名单为锚定正则（`re.fullmatch`，参数扩展必须在模式内显式允许）是最终安全闸；画像白名单按前缀语义（命令==条目或「条目 + 空格」开头）；两栏皆过才放行。`profile_whitelist=None` 或空列表一律视为交集为空 → `ProbeDenied`。
+  3. `ProbeClient.__init__` 较计划签名增两个可选参数 `connect_timeout=5`/`command_timeout=10`（默认 SSH runner `-o BatchMode=yes -o ConnectTimeout=N` 使用）；runner 抛 `subprocess.TimeoutExpired`/`TimeoutError` → `ProbeTimeout`（code=PROBE_TIMEOUT）且审计 `SSH_PROBE_TIMEOUT`。
+  4. 拒绝也逐次审计（action=SSH_PROBE_DENIED，detail 含 command/session_id/reason），哈希链 verify 不受影响。
+  5. settings 增 `probe` 段（`ProbeSettings`：`global_whitelist` 默认内置只读命令集、`connect_timeout_seconds`、`command_timeout_seconds`）+ `_FIELD_LABELS`/`_SECTION_MODELS` 中文标签；两个 config 示例以注释块同步（缺省用内置白名单，注释注明「空列表 = 拒绝一切」）。
+  6. 本任务产出为 lib 级组件（whitelist/client + settings + 测试），未挂接 API 路由——计划 Task 8 范围即如此；重诊入口装配留给后续里程碑。
 
 ### Task 9: 验收（门禁 + 系统级 + 浏览器 + 文档回写）
 

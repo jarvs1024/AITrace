@@ -21,3 +21,10 @@ ai:
   # 国内实例的 VPC 专线网关（<实例名>.vpc.qoder.com.cn）；模型名需与 VPC 部署精确大小写一致
   vpc_endpoint: twsc.vpc.qoder.com.cn
   sdk_control_timeout_ms: 180000
+# probe 段可选：缺省时使用内置全局只读白名单（参见 src/aitrace/probe/whitelist.py）。
+# 如需收紧直接列出正则列表；空列表 = 拒绝一切探针命令。
+# probe:
+#   global_whitelist:
+#     - "^nvme list$"
+#   connect_timeout_seconds: 5
+#   command_timeout_seconds: 10
