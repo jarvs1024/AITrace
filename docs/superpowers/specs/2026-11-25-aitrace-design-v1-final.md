@@ -1427,6 +1427,16 @@ AITrace/
 6. **perf 基线快配**：`make perf`（harness `tools/perf_harness.py`）`--profile all --batches 8` 实测 burndown 8/8、fairness 11/11 全达标，数值与限定词回填 §7.1「实测（P95）」列、C/W/D 收敛值回填 §8.2；受理 RTT 口径统一为秒（修复毫秒比秒级目标的虚假 MISS）；fake AI 口径下队列等待 0.0s，D=360s 维持待真实链标定。
 7. **ops/security 门禁固化**：`make test-security`（pytest 关键词集：token/probe/audit/whitelist/credential/startup/backup）与 `make ops`（tests/ops 资产 + 真实备份演练）写入 Makefile 并接 CI（verify job 追加两步）；`make verify` 保持既有四步不扩，perf 不进 CI（计时环境不适合每次 merge），发布前人工跑 security/ops/perf。
 
+**V1.3 实施修订（2026-11-27，M5 加固实施期回填）**：不改任何接口与调度语义，仅回填 M5 落地结论与门禁：
+
+1. **主机资产范围闸（§7.2）**：`ProbeClient.run` 首步校验目标主机 IP 必须在 `probe.host_allowlist`（`AITRACE_PROBE__HOST_ALLOWLIST`，JSON 数组）网段内，未配置一律仅放行回环（`allow_loopback=true`），主机名与网段不可入；拒绝即审计 `SSH_PROBE_DENIED` 且不触达 runner——伪造投递驱动 SSH 横向移动在此封死（`src/aitrace/probe/assets.py` + `client.py` + `core/settings.py::ProbeSettings`）。
+2. **灰度投递闸（§10.1 M5）**：`GrayscaleSettings`（`AITRACE_GRAYSCALE__ENABLED/PRODUCT_IDS`）——enabled=false 全放行、true 仅放行清单内产品线（空清单=拒绝一切）；被拒返回 403 `GRAYSCALE_BLOCKED`（`retryable=false`，aitest 不重试）；闸位于背压检查之前（先鉴后压）。
+3. **附件三道门（M3 重诊附件上传来闭环）**：大小 413 → 媒体类型白名单 415（`storage.attachment_allowed_media_types`，默认七类，`application/octet-stream` 不再放行）→ 魔数前缀扫描 422（ELF/MZ/shebang 即拒；敌意文本只作数据处理放行）→ 落盘；附件只读不执行（红队用例锁定）。
+4. **JIT 拉取入审计补账（§7.2「每次拉取入审计」此前仅探针落账的缺口）**：ai-worker 每次 JIT 拉取（成功/失败）写入审计 `TOKEN_FETCH`，detail 只记 `product_id/batch_id/case_id/trigger_user_id/result`（失败另加 `code/retryable`），结构与测试共同保证**绝不记令牌本体**；拉取失败审计先于队列暂停/失败动作落账。
+5. **红队用例集（§10.1 M2 注入防御红队 + M5）**：新增 `tests/security/` 四套——注入（提示词围栏隔离/闭集枚举/证据哈希/代码块后尾随指令）、探针（shell 元字符/未知选项/SSRF 云元数据主机/拒绝路径不触达 runner）、附件（ELF/shebang/PE 恶意魔数/越权媒体类型/敌意文本反误杀）、令牌（恶意令牌体不落审计与服务日志）；全部纳入 `make verify`。
+6. **运维手册五件套 + R1 合规 gate**：`deploy/runbooks/01…05`（令牌生命周期/告警处置/备份恢复/发布回滚/灰度扩量）+ `report/r1-compliance-assessment.md`（红线 1/2/3 逐条控制-证据-结论评测表；gate 结论：条件放行——探针运行时接线与阶段一真实标定完成前，不得对真实被测日志启用探针类分析）。
+7. **M5 全量回归证据（2026-11-27）**：`make verify` 486 passed / 2 skipped（cov 94.40%）+ contract 26 + e2e 4 · `make test-security`（带 TEST_DATABASE_URL）97 passed 0 skipped · `make ops` 20 passed（含 2 项真实 pg_dump/pg_restore 演练）· `make perf --out` 三 profile 全 PASS（backpressure 投递 20/受理 10/429 × 10，retry_after P95 60s）· `make lint` 零告警（mypy 103 源文件）。执行裁定详见 M5 计划文末执行记录。
+
 ---
 
 ## 附录 C 关键名词对照
