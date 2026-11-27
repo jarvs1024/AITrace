@@ -12,15 +12,24 @@ from aitrace.cleaning.registry import CleaningRegistry
 from aitrace.cleaning.rules import RuleSet
 from aitrace.core.enums import QueueState, Stage
 from aitrace.core.ids import SystemClock, UuidIdGenerator
+from aitrace.ingest.log_client import LogClient, LogFetchError
 from aitrace.persistence.models import Report, Round, SessionModel, TaskQueue
 from aitrace.persistence.repositories.queue import QueueRepository
 
 
 class CleaningWorker:
-    def __init__(self, queue: QueueRepository, registry: CleaningRegistry, rules: RuleSet) -> None:
+    def __init__(
+        self,
+        queue: QueueRepository,
+        registry: CleaningRegistry,
+        rules: RuleSet,
+        *,
+        log_client: LogClient | None = None,
+    ) -> None:
         self._queue = queue
         self._registry = registry
         self._rules = rules
+        self._log_client = log_client
 
     def run_once(
         self,
@@ -39,6 +48,36 @@ class CleaningWorker:
         finally:
             session.flush()
         return 1
+
+    def _pull_missing_logs(self, task: TaskQueue, raw_root: Path) -> None:
+        """本地 L2 缺失的声明日志经 aitest 日志接口补拉；单源失败只标注缺口不阻塞清洗。"""
+        client = self._log_client
+        if client is None:
+            return
+        # 先浅拷贝再改动：payload 是普通 JSONB，原地改原 dict 对象会让
+        # 已提交状态同步变化，等值回赋时 SQLAlchemy 判为 unchanged 而漏写库
+        payload = dict(task.payload or {})
+        logs = payload.get("logs") or {}
+        failures = dict(payload.get("log_pull_errors") or {})
+        failed_at_utc = payload.get("failed_at_utc")
+        for field_name, path in logs.items():
+            if not isinstance(path, str) or (raw_root / path).is_file():
+                continue
+            try:
+                client.download_to(
+                    path=path,
+                    dest=raw_root / path,
+                    failed_at_utc=failed_at_utc if isinstance(failed_at_utc, int) else None,
+                )
+            except LogFetchError as exc:
+                failures[field_name] = {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "path": path,
+                }
+        if failures:
+            payload["log_pull_errors"] = failures
+            task.payload = dict(payload)
 
     def process_one(
         self,
@@ -62,6 +101,7 @@ class CleaningWorker:
         if round_row.stage == Stage.QUEUED.value:
             round_row.stage = Stage.CLEANING.value
         raw_root = data_dir / "rawlogs" / task.batch_id
+        self._pull_missing_logs(task, raw_root)
         outcome = run_pipeline(
             payload=task.payload or {},
             authoritative={
