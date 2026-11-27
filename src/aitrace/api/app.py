@@ -164,7 +164,7 @@ def create_app(
         app.state.cutoff_rules = build_cutoff_rules(settings)
         app.state.cleaning_registry = CleaningRegistry()
         app.state.ai_worker = build_ai_worker(
-            settings, ids=app.state.ids, metrics=app.state.metrics
+            settings, ids=app.state.ids, metrics=app.state.metrics, audit=app.state.audit
         )
         app.state.callback_worker = build_callback_worker(settings, metrics=app.state.metrics)
         app.state.notify_worker = build_notify_worker(

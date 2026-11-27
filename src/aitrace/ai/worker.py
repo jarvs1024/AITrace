@@ -36,6 +36,7 @@ from aitrace.ai.validate import (
     validate_conclusion,
 )
 from aitrace.callback.enqueue import enqueue_progress, enqueue_result
+from aitrace.core.audit import AuditService
 from aitrace.core.enums import QueueState, Stage, TaskType
 from aitrace.core.settings import AISettings, AitestSettings
 from aitrace.knowledge.prescreen import MemoryHit, prescreen_case_library
@@ -94,6 +95,7 @@ class AIWorker:
         query_timeout: float,
         ids: Any,
         metrics: MetricsRegistry | None = None,
+        audit: AuditService | None = None,
     ) -> None:
         self._settings = settings
         self._aitest = aitest
@@ -103,6 +105,7 @@ class AIWorker:
         self._query_timeout = query_timeout
         self._ids = ids
         self._metrics = metrics
+        self._audit = audit
 
     def run_once(self, session: Session, now: datetime, owner: str) -> int:
         queue = QueueRepository(session, metrics=self._metrics)
@@ -294,7 +297,7 @@ class AIWorker:
             registry=self._metrics,
         )
         try:
-            return client.fetch(
+            grant = client.fetch(
                 product_id=task.product_id,
                 batch_id=task.batch_id,
                 case_id=task.case_id,
@@ -302,9 +305,35 @@ class AIWorker:
                 action="analyze",
             )
         except TokenFetchError as exc:
+            # S-7.2：JIT 每次拉取必入审计，但 detail 只记投递键/触发人/结果——
+            # 绝不记录令牌本体，防止令牌经审计链路泄漏。
+            self._audit_fetch(task, "fail", {"code": exc.code, "retryable": exc.retryable})
             if not exc.retryable:
                 raise _Terminal(exc.code, exc.message) from exc
             raise _PauseAndRetry(exc) from exc
+        self._audit_fetch(task, "ok")
+        return grant
+
+    def _audit_fetch(
+        self, task: TaskQueue, result: str, extra: dict[str, Any] | None = None
+    ) -> None:
+        if self._audit is None:
+            return
+        detail: dict[str, Any] = {
+            "product_id": task.product_id,
+            "batch_id": task.batch_id,
+            "case_id": task.case_id,
+            "trigger_user_id": task.queue_key,
+            "result": result,
+        }
+        if extra:
+            detail.update(extra)
+        self._audit.append(
+            actor="ai-worker",
+            action="TOKEN_FETCH",
+            target=task.queue_key,
+            detail=detail,
+        )
 
     def _stream(
         self,

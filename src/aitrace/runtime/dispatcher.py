@@ -13,6 +13,7 @@ from aitrace.ai.worker import AIWorker
 from aitrace.callback.worker import CallbackWorker
 from aitrace.cleaning.rules import RuleSet
 from aitrace.cleaning.worker import CleaningWorker
+from aitrace.core.audit import AuditService
 from aitrace.core.settings import Settings, SettingsError
 from aitrace.knowledge.materialize import MemoryMaterializeWorker
 from aitrace.notify.worker import NotifyWorker, build_notify_config_fetcher, build_notify_poster
@@ -36,6 +37,7 @@ def build_ai_worker(
     ids: Any,
     token_transport: httpx.BaseTransport | None = None,
     metrics: MetricsRegistry | None = None,
+    audit: AuditService | None = None,
 ) -> AIWorker:
     adapter: Any
     if settings.ai.edition == "fake":
@@ -55,6 +57,7 @@ def build_ai_worker(
         query_timeout=float(settings.ai.query_timeout_seconds),
         ids=ids,
         metrics=metrics,
+        audit=audit,
     )
 
 
