@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from aitrace.api.errors import install_error_handlers
-from aitrace.api.routes import deliveries, health, sessions
+from aitrace.api.routes import deliveries, feedback, health, sessions
 from aitrace.cleaning.registry import CleaningRegistry
 from aitrace.core.ids import SystemClock, UuidIdGenerator
 from aitrace.core.settings import Settings, load_settings
@@ -95,4 +95,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(deliveries.router, prefix="/api/v1")
     app.include_router(sessions.router, prefix="/api/v1")
+    app.include_router(feedback.router, prefix="/api/v1")
     return app

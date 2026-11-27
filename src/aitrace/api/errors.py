@@ -25,6 +25,13 @@ _FIELD_LABELS = {
     "logs": "日志路径",
     "devices": "设备清单",
     "host_ip": "主机 IP",
+    "session_id": "会话 ID",
+    "round_no": "轮次号",
+    "reviewer": "评审人",
+    "action": "评价动作",
+    "correction": "修正信息",
+    "root_cause_category": "根因分类",
+    "reason": "修正说明",
 }
 
 _TOKEN_FIELD = re.compile(

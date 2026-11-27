@@ -119,3 +119,31 @@ class SessionStatusResponse(_StrictModel):
     message: str
     report: dict[str, Any] | None = None
     citation: dict[str, Any] | None = None
+
+
+_ROOT_CAUSE_CATEGORIES = Literal[
+    "TEST_ENV_ERROR", "FW_DEFECT", "SCRIPT_ISSUE", "HW_DEFECT", "OTHER"
+]
+
+
+class FeedbackCorrection(_StrictModel):
+    root_cause_category: _ROOT_CAUSE_CATEGORIES
+    reason: str = Field(min_length=1)
+
+
+class FeedbackRequest(_StrictModel):
+    session_id: str = Field(min_length=1)
+    batch_id: str = Field(min_length=1)
+    case_id: str = Field(default="")
+    round_no: int | None = Field(default=None, gt=0)
+    reviewer: str = Field(min_length=1)
+    action: Literal["VALID", "INVALID"]
+    correction: FeedbackCorrection | None = None
+
+
+class FeedbackResponse(_StrictModel):
+    feedback_id: str
+    session_id: str
+    round_no: int
+    version: int
+    status: Literal["applied", "idempotent"]
