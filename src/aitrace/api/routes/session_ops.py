@@ -23,6 +23,19 @@ from aitrace.persistence.models import Attachment, Round, SessionModel, TaskQueu
 from aitrace.persistence.repositories.queue import QueueRepository
 from aitrace.scheduling.types import NewTask
 
+
+def _scan_for_executable(data: bytes) -> str | None:
+    """头部魔数扫描：附件仅作证据文本读取，拒绝可执行内容。"""
+    head = data[:512]
+    if head.startswith(b"\x7fELF"):
+        return "ELF 可执行文件"
+    if head.startswith(b"MZ"):
+        return "PE/DOS 可执行文件"
+    if head.lstrip().startswith(b"#!"):
+        return "脚本解释器声明（shebang）"
+    return None
+
+
 router = APIRouter(tags=["session-ops"])
 
 _TERMINAL_STAGES = {Stage.COMPLETED.value, Stage.FAILED.value}
@@ -155,6 +168,22 @@ async def upload_attachment(
             f"附件大小超限：当前 {len(data)} 字节，上限 {max_bytes} 字节",
             http_status=413,
         )
+    media_type = file.content_type or "application/octet-stream"
+    allowed_types = settings.storage.attachment_allowed_media_types
+    if media_type not in allowed_types:
+        raise AitraceError(
+            "ATTACHMENT_TYPE_FORBIDDEN",
+            f"附件类型不允许：当前 {media_type}；允许清单：{'、'.join(allowed_types)}",
+            http_status=415,
+        )
+    malicious = _scan_for_executable(data)
+    if malicious is not None:
+        raise AitraceError(
+            "ATTACHMENT_MALICIOUS",
+            f"附件内容疑似恶意文件（检测到 {malicious}）：附件只允许作为证据文本读取，"
+            "禁止上传可执行内容",
+            http_status=422,
+        )
     original_name = Path(file.filename or "attachment").name
     attachment_id = ids.new("A")
     relative = f"rawlogs/{record.batch_id}/uploads/{attachment_id}_{original_name}"
@@ -167,7 +196,7 @@ async def upload_attachment(
             attachment_id=attachment_id,
             session_id=session_id,
             round_no=record.latest_round_no + 1,
-            media_type=file.content_type or "application/octet-stream",
+            media_type=media_type,
             path=relative,
             size_bytes=len(data),
             sha256=hashlib.sha256(data).hexdigest(),

@@ -145,6 +145,17 @@ class StorageSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     data_dir: Path = Path("data")
     max_attachment_bytes: int = Field(default=50 * 1024 * 1024, ge=1024 * 1024)
+    attachment_allowed_media_types: list[str] = Field(
+        default_factory=lambda: [
+            "text/plain",
+            "text/x-log",
+            "text/csv",
+            "application/json",
+            "image/png",
+            "image/jpeg",
+            "application/pdf",
+        ]
+    )
     profile_domains_dir: Path = Path("deploy/config/domains")
     cutoff_rules_file: Path = Path("deploy/config/rules/cutoff.yaml")
     l2_quota_bytes: int | None = Field(default=None, ge=1)
