@@ -730,6 +730,14 @@ git push
 | T4 告警触达 | commit（见本轮提交）；tests/unit/test_alerts.py 20 用例 + tests/unit/test_audit_blocked.py 5 用例全绿；`make verify`：lint 全过、405 passed + 26 contract + 4 e2e，coverage 94.89%；告警判定覆盖全局/单令牌深度、PAUSED_AUTH 持续、令牌失败率、回调失败率/积压、热记忆物化失败、WAITING 超时、worker util 低/高、水位 WARN/FORCE、审计链断裂、fencing 持续；append 熔断抛 AUDIT_CHAIN_BROKEN（503）且不落库；verify_chain 60s 缓存经断链行验证缓存命中与过期后检出 |
 | T5 readyz+自检 | commit 2c806db；tests/unit/test_startup.py 8 用例 + test_readyz.py 4 用例 + test_main.py 2 用例（含失败退出 SystemExit(1)）全绿；`make verify`：lint 全过、418 passed + 26 contract + 4 e2e，coverage 94.61%；契约文件刷新 +12 行（/readyz 纯新增）；dev 实启验证：`GET /api/v1/readyz` 200 ready（version 0.1.0）、rawlogs/memory/logs 子目录自动创建（evidence/runtime 已存在不动）；SIGTERM 后日志呈现 Shutting down → Waiting for application shutdown → Application shutdown complete 干净排水；凭据扫描命中只回显文件名（测试断言消息不含 ASCII「token」）、HOME 命中仅警告不阻断 |
 | T6 备份/恢复 | commit（见本轮提交）；tests/unit/test_backup.py 12 用例全绿（DSN 拆分密码只入 env、空间不足 SpaceShortageError 且零 dump、保留策略同删 digest、dump+digest+list 校验、推送失败保留 dump 并告警、非空目标拒绝/--force 放行、console 退出码 0/1/3）；tests/ops/test_backup_drill.py 2 用例真实 pg_dump/pg_restore 通过（AITRACE_OPS_DRILL=1 门禁）；CLI 演练：`aitrace-backup backup --staging /tmp/aitrace-backup-drill --keep 2` 产出 31119 字节 dump + SHA-256 digest，`restore --force` 恢复到测试库后 `make test-integration` 98 passed；`make verify` 全绿 |
+| T7 发布脚本 | commit（见本轮提交）；tests/ops/test_release_scripts.py 4 用例全绿 + tests/ops/test_deploy_assets.py 14 用例全绿（含 bash -n 与可执行位）；fake 树驱动六步链路：日志标记顺序 预检通过→安装完成→服务已停止→迁移完成→切换 current→服务已启动→readyz 通过，systemctl 调用顺序 stop→alembic→start；readyz 失败自动回滚（current 还原 v1、start×2、新 release 目录保留待人工核查）；保留策略 v1.1.0..v1.5.0 → 仅剩 1.3/1.4/1.5；rollback.sh 中文报错「目标版本目录不存在」；`make verify`：lint 全过、434 passed + 2 skipped + 26 contract + 4 e2e，coverage 94.49% |
+
+裁决记录（T7）：
+- 升级前「当前服务 readyz」预检要求现网可探活，探活失败即中止（避免在服务已坏的状态上继续变更）；测试环境用 SVC_DOWN/SVC_BROKEN 标记驱动的假 curl 模拟服务生命周期。
+- 备份新鲜度检查（24h 内 dump）默认开启，可用 --skip-backup-check 显式跳过；fake 树测试统一走 skip 路径。
+- 磁盘预检不落地（跨平台 df 输出格式差异易误报，空间风险已由 M4-T2 收受背压 + systemd 单元 ReadWritePaths 覆盖）；备份新鲜度检查承担「可回退」保证。
+- current 解析用 `readlink`（GNU/BSD 通用）+ 相对目标拼接，替换原 `readlink -f`（macOS 无此选项）。
+- 运行时覆盖统一走环境变量（AITRACE_INSTALL_ROOT/SERVICE_NAME/UPGRADE_LOG/READYZ_RETRIES/READYZ_INTERVAL/STOP_WAIT），脚本内默认值 = 生产值，测试无需改写脚本。
 
 裁决记录（T6）：
 - 恢复演练测试加显式 opt-in 门禁 `AITRACE_OPS_DRILL=1`（计划仅列 TEST_DATABASE_URL 与 pg 工具门禁）：tests/ops 在默认测试收集范围内，pg_restore --clean 会与同进程集成测试的 db_engine 连接冲突，必须由 make ops 显式开启。
