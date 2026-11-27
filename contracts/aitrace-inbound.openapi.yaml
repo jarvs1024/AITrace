@@ -19,6 +19,18 @@ paths:
                   type: string
                 type: object
                 title: Response Health Api V1 Health Get
+  /api/v1/readyz:
+    get:
+      tags:
+      - health
+      summary: Readyz
+      operationId: readyz_api_v1_readyz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /api/v1/aitrace/tasks:
     post:
       tags:

@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -48,7 +48,11 @@ from aitrace.runtime.dispatcher import (
 logger = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    startup_checks: Callable[[], None] | None = None,
+) -> FastAPI:
     settings = settings or load_settings()
     if settings.service_token is None:
         raise RuntimeError("service_token must be resolved before create_app")
@@ -109,6 +113,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         loop_thread: threading.Thread | None = None
         monitor_thread: threading.Thread | None = None
+        if startup_checks is not None:
+            startup_checks()
+        app.state.ready = True
         if settings.runtime.enabled:
             loop_thread = threading.Thread(
                 target=_dispatch_loop, name="aitrace-dispatcher", daemon=True
@@ -122,12 +129,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            app.state.stopping = True
             if monitor_thread is not None:
                 monitor_stop.set()
                 monitor_thread.join(timeout=10)
             if loop_thread is not None:
                 stop_event.set()
                 loop_thread.join(timeout=10)
+            app.state.ready = False
             engine.dispose()
 
     app = FastAPI(
@@ -141,6 +150,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = session_factory
+    app.state.ready = False
+    app.state.stopping = False
     app.state.clock = SystemClock()
     app.state.ids = UuidIdGenerator()
     app.state.profile_resolver = ProfileResolver(registry)
