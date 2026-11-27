@@ -15,6 +15,7 @@ from aitrace.cleaning.rules import RuleSet
 from aitrace.cleaning.worker import CleaningWorker
 from aitrace.core.audit import AuditService
 from aitrace.core.settings import Settings, SettingsError
+from aitrace.ingest.log_client import LogClient
 from aitrace.knowledge.materialize import MemoryMaterializeWorker
 from aitrace.notify.worker import NotifyWorker, build_notify_config_fetcher, build_notify_poster
 from aitrace.observability.metrics import MetricsRegistry
@@ -29,6 +30,17 @@ logger = logging.getLogger(__name__)
 
 def build_cutoff_rules(settings: Settings) -> RuleSet:
     return RuleSet.load(settings.storage.cutoff_rules_file)
+
+
+def build_log_client(settings: Settings) -> LogClient | None:
+    """未配置读令牌时返回 None，清洗 worker 跳过补拉（与 AI 派发同门）。"""
+    if settings.aitest.read_token is None:
+        return None
+    return LogClient(
+        base_url=settings.aitest.base_url,
+        read_token=settings.aitest.read_token.get_secret_value(),
+        timeout_seconds=settings.aitest.timeout_seconds,
+    )
 
 
 def build_ai_worker(
@@ -98,9 +110,12 @@ def run_tick(session: Session, state: Any, owner: str) -> None:
     ids = state.ids
     queue = QueueRepository(session, metrics=getattr(state, "metrics", None))
 
-    CleaningWorker(queue, state.cleaning_registry, state.cutoff_rules).run_once(
-        session, clock=state.clock, ids=ids, data_dir=settings.storage.data_dir, owner=owner
-    )
+    CleaningWorker(
+        queue,
+        state.cleaning_registry,
+        state.cutoff_rules,
+        log_client=getattr(state, "log_client", None),
+    ).run_once(session, clock=state.clock, ids=ids, data_dir=settings.storage.data_dir, owner=owner)
 
     route_ready_cleans(session, queue, ids, now, settings.ai)
 

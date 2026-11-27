@@ -41,6 +41,7 @@ from aitrace.runtime.dispatcher import (
     build_ai_worker,
     build_callback_worker,
     build_cutoff_rules,
+    build_log_client,
     build_notify_worker,
     run_tick,
 )
@@ -163,6 +164,7 @@ def create_app(
     if settings.runtime.enabled:
         app.state.cutoff_rules = build_cutoff_rules(settings)
         app.state.cleaning_registry = CleaningRegistry()
+        app.state.log_client = build_log_client(settings)
         app.state.ai_worker = build_ai_worker(
             settings, ids=app.state.ids, metrics=app.state.metrics, audit=app.state.audit
         )
