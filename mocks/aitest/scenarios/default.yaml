@@ -1,10 +1,16 @@
+# mock aitest 默认场景：一次主机开机下顺序执行的 5 个失败用例 + 2 个通过用例。
+# 日志由 tools/generate_logs.py 确定性生成（mocks/aitest/logs/…），大小不一：
+#   CASE-1021 194KB / CASE-1048 424KB / CASE-1055 3KB（合计 ≤1MiB → 清洗不切片）；
+#   CASE-1035 1.36MiB（三段切片，不收缩）；CASE-1042 6.8MiB（切片且触发收缩）。
+# 截流闸命中：CASE-1035（PCIe Link Down）/ CASE-1048（device busy）/ CASE-1055（锁板冲突）；
+# 进 AI：CASE-1021（固件断言）/ CASE-1042（I/O 超时风暴 + watchdog）。
 batch_id: BATCH-20261120-0089
 product_id: ssd_9560
 trigger_user_id: zhangsan
 hardware_type: SSD
 env_topology:
   host_ip: 10.23.45.67
-  host_boot_time_utc: 1763000000
+  host_boot_time_utc: 1795140000
   devices:
     - device_id: nvme-ssd-001
       pcie_bdf: "0000:01:00.0"
@@ -13,6 +19,13 @@ env_topology:
       sn: SN20261120001
       fw_version: "2.3.1"
       slot: slot-0
+    - device_id: nvme-ssd-002
+      pcie_bdf: "0000:01:00.1"
+      device_node: /dev/nvme1n1
+      model: SSD-9560
+      sn: SN20261120002
+      fw_version: "2.3.1"
+      slot: slot-1
 git_context:
   repo_url: https://git.example.com/ssd/aitest-cases.git
   commit_id: abc123def4567890123456789012345678901234
@@ -20,7 +33,7 @@ cases:
   - case_id: CASE-1021
     status: FAILED
     script_path: cases/endurance/random_write_72h.py
-    failed_at_utc: 1763100000
+    failed_at_utc: 1795148400
     env_binding:
       device_id: nvme-ssd-001
     logs:
@@ -28,6 +41,51 @@ cases:
       uart_log_path: var/log/aitest/CASE-1021/uart.log
       kernel_log_path: var/log/aitest/CASE-1021/dmesg.log
       scheduler_log_path: var/log/aitest/CASE-1021/scheduler.log
+  - case_id: CASE-1048
+    status: FAILED
+    script_path: cases/basic/trim_verify.py
+    failed_at_utc: 1795153020
+    env_binding:
+      device_id: nvme-ssd-001
+    logs:
+      test_log_path: var/log/aitest/CASE-1048/test.log
+      uart_log_path: var/log/aitest/CASE-1048/uart.log
+      kernel_log_path: var/log/aitest/CASE-1048/dmesg.log
+      scheduler_log_path: var/log/aitest/CASE-1048/scheduler.log
+  - case_id: CASE-1035
+    status: FAILED
+    script_path: cases/aging/rescan_power_cycle.py
+    failed_at_utc: 1795156200
+    env_binding:
+      device_id: nvme-ssd-001
+    logs:
+      test_log_path: var/log/aitest/CASE-1035/test.log
+      uart_log_path: var/log/aitest/CASE-1035/uart.log
+      kernel_log_path: var/log/aitest/CASE-1035/dmesg.log
+      scheduler_log_path: var/log/aitest/CASE-1035/scheduler.log
+  - case_id: CASE-1042
+    status: FAILED
+    script_path: cases/stability/longrun_io_72h.py
+    failed_at_utc: 1795172400
+    env_binding:
+      device_id: nvme-ssd-001
+    logs:
+      test_log_path: var/log/aitest/CASE-1042/test.log
+      uart_log_path: var/log/aitest/CASE-1042/uart.log
+      kernel_log_path: var/log/aitest/CASE-1042/dmesg.log
+      scheduler_log_path: var/log/aitest/CASE-1042/scheduler.log
+  - case_id: CASE-1055
+    status: FAILED
+    script_path: cases/raid/pair_write.py
+    failed_at_utc: 1795180800
+    env_binding:
+      device_id: nvme-ssd-001
+    logs:
+      test_log_path: var/log/aitest/CASE-1055/test.log
+      scheduler_log_path: var/log/aitest/CASE-1055/scheduler.log
   - case_id: CASE-0987
     status: PASSED
     script_path: cases/basic/seq_read.py
+  - case_id: CASE-0988
+    status: PASSED
+    script_path: cases/basic/trim_verify.py

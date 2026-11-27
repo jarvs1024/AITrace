@@ -1,8 +1,11 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from aitest_mock import main as mock_main
@@ -146,8 +149,14 @@ def test_deliver_forwards_with_bearer_and_passes_through(monkeypatch: Any) -> No
     sent = captured["body"]
     assert sent["batch_id"] == "BATCH-20261120-0089"
     assert sent["hardware_type"] == "SSD"
-    assert [case["case_id"] for case in sent["failed_cases"]] == ["CASE-1021"]
-    assert [case["case_id"] for case in sent["passed_cases"]] == ["CASE-0987"]
+    assert [case["case_id"] for case in sent["failed_cases"]] == [
+        "CASE-1021",
+        "CASE-1048",
+        "CASE-1035",
+        "CASE-1042",
+        "CASE-1055",
+    ]
+    assert [case["case_id"] for case in sent["passed_cases"]] == ["CASE-0987", "CASE-0988"]
 
 
 def test_deliver_payload_satisfies_aitrace_schema(monkeypatch: Any) -> None:
@@ -387,7 +396,13 @@ def test_stats_aggregates_deliveries_callbacks_and_report(monkeypatch: Any) -> N
     assert stats["event_distribution"] == {"PROGRESS": 1, "RESULT": 1}
     assert stats["progress_mean"] == 15
     recent = stats["recent_deliveries"]
-    assert recent[0]["failed_case_ids"] == ["CASE-1021"]
+    assert recent[0]["failed_case_ids"] == [
+        "CASE-1021",
+        "CASE-1048",
+        "CASE-1035",
+        "CASE-1042",
+        "CASE-1055",
+    ]
     assert recent[0]["session_ids"] == ["S1"]
     assert recent[0]["trigger_user_id"] == "zhangsan"
     assert stats["sessions"][0]["stage"] == "COMPLETED"
@@ -421,7 +436,19 @@ def test_reset_clears_deliveries_and_callbacks(monkeypatch: Any) -> None:
 
 _LOG_ROOT = Path(__file__).resolve().parents[2] / "mocks" / "aitest" / "logs"
 _TEST_LOG = _LOG_ROOT / "var" / "log" / "aitest" / "CASE-1021" / "test.log"
+_LOG_GENERATOR = (
+    Path(__file__).resolve().parents[2] / "mocks" / "aitest" / "tools" / "generate_logs.py"
+)
 WEBHOOK_BASE = "http://127.0.0.1:8002"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _ensure_generated_logs() -> None:
+    """mock 日志不入库（gitignore），缺失时用生成器重建，保证套件在新环境可跑。"""
+    if not _TEST_LOG.is_file():
+        subprocess.run(
+            [sys.executable, str(_LOG_GENERATOR)], check=True, cwd=_LOG_GENERATOR.parents[1]
+        )
 
 
 def test_log_list_returns_case_logs_and_requires_token() -> None:
@@ -482,7 +509,10 @@ def test_log_download_truncates_by_failed_at_utc() -> None:
     with TestClient(app) as client:
         response = client.get(
             "/api/v1/aitest/logs",
-            params={"path": "var/log/aitest/CASE-1021/test.log", "failed_at_utc": 1763100000},
+            params={
+                "path": "var/log/aitest/CASE-TRUNC-BRACKET/test.log",
+                "failed_at_utc": 1763100000,
+            },
             headers=READ,
         )
     assert response.status_code == 200
@@ -491,6 +521,72 @@ def test_log_download_truncates_by_failed_at_utc() -> None:
     assert len(lines) == 2
     assert lines[0].startswith("[1763099900]")
     assert lines[1].startswith("[1763100000]")
+
+
+def test_log_download_truncates_iso_by_failed_at_utc() -> None:
+    """ISO 时间戳（test.log）：失败时刻及之前的行保留，teardown/exit 截除。"""
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log", "failed_at_utc": 1795148400},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    lines = response.content.decode("utf-8").splitlines()
+    assert lines[-1].startswith("2026-11-20T04:20:00.000Z TimeoutException: uart no response")
+    assert any(
+        line.startswith("2026-11-20T04:20:00.000Z Traceback (most recent call last):")
+        for line in lines
+    )
+    assert not any("teardown begins" in line for line in lines)
+    assert not any("exit code" in line for line in lines)
+
+
+def test_log_download_truncates_uart_tick_by_failed_at_utc() -> None:
+    """uart @TICK 相对毫秒：失败时刻前的 ASSERT 硬错行保留，失败后的 post-mortem 行截除。"""
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/uart.log", "failed_at_utc": 1795148400},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    lines = response.content.decode("utf-8").splitlines()
+    assert any("ASSERT" in line for line in lines)
+    assert not any("post-mortem" in line for line in lines)
+    assert not any("awaiting host command" in line for line in lines)
+
+
+def test_log_download_truncates_dmesg_rel_by_failed_at_utc() -> None:
+    """dmesg 相对秒（开机基准）：失败时刻前的 BUG/Call Trace 保留，失败后的 device offline 截除。"""
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1042/dmesg.log", "failed_at_utc": 1795172400},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    lines = response.content.decode("utf-8").splitlines()
+    assert any("BUG: kernel NULL pointer dereference" in line for line in lines)
+    assert any("Call Trace:" in line for line in lines)
+    assert not any("device offline" in line for line in lines)
+
+
+def test_log_download_truncates_keeps_unparsable_lines() -> None:
+    """无法识别时间戳的行保守保留（banner 等无时间戳内容不被误删）。"""
+    raw_head = (
+        (_LOG_ROOT / "var" / "log" / "aitest" / "CASE-1021" / "uart.log")
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/uart.log", "failed_at_utc": 1795148400},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    assert response.content.decode("utf-8").splitlines()[0] == raw_head
 
 
 def test_log_download_safety_and_missing() -> None:

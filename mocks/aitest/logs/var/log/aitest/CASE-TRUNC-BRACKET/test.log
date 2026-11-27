@@ -1,0 +1,3 @@
+[1763099900] INFO legacy bracket format pre-failure line
+[1763100000] ERROR legacy boundary line at failed_at_utc (kept: ts == boundary)
+[1763100060] INFO legacy post-failure line (cut)

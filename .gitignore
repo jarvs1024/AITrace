@@ -7,6 +7,8 @@ node_modules/
 *.log
 !tests/fixtures/**/*.log
 !mocks/aitest/scenarios/**/*.log
+# 截断契约测试专用夹具（其余 mock 日志由 tools/generate_logs.py 本地生成，不入库）
+!mocks/aitest/logs/var/log/aitest/CASE-TRUNC-BRACKET/test.log
 *.tmp
 
 # 运行数据（仅保留说明文件）

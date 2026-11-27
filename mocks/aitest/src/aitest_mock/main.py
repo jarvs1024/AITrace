@@ -194,15 +194,53 @@ def _resolve_log_path(path: str) -> Path:
     return candidate
 
 
-_TIMESTAMP_RE = re.compile(r"^\[(\d+)\]")
+_ISO_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z) ")
+_DMESG_RE = re.compile(r"^\[\s*(\d+\.\d{1,6})\]")
+_BRACKET_RE = re.compile(r"^\[(\d+)\]")
+_TICK_RE = re.compile(r"@TICK (\d+)")
+
+_boot_utc_cache: int | None = None
+_boot_utc_loaded = False
+
+
+def _boot_utc() -> int | None:
+    """场景共享开机时刻（epoch 秒），供 dmesg 相对秒 / uart @TICK 换算绝对时间。"""
+    global _boot_utc_cache, _boot_utc_loaded
+    if not _boot_utc_loaded:
+        data = yaml.safe_load(_SCENARIO.read_text(encoding="utf-8")) or {}
+        boot = (data.get("env_topology") or {}).get("host_boot_time_utc")
+        _boot_utc_cache = int(boot) if boot else None
+        _boot_utc_loaded = True
+    return _boot_utc_cache
+
+
+def _line_epoch(text: str, boot_s: int | None) -> float | None:
+    iso = _ISO_RE.match(text)
+    if iso is not None:
+        try:
+            return datetime.fromisoformat(iso.group(1).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            pass
+    bracket = _BRACKET_RE.match(text)
+    if bracket is not None:
+        return float(bracket.group(1))
+    dmesg = _DMESG_RE.match(text)
+    if dmesg is not None and boot_s is not None:
+        return boot_s + float(dmesg.group(1))
+    tick = _TICK_RE.search(text)
+    if tick is not None and boot_s is not None:
+        return boot_s + int(tick.group(1)) / 1000
+    return None
 
 
 def _truncate_by_failed_at(data: bytes, failed_at_utc: int) -> bytes:
-    """按失败时刻逻辑截断（按行对齐）：只保留时间戳 <= failed_at_utc 的行；无时间戳行保守保留。"""
+    """按失败时刻逻辑截断（按行对齐）：识别 ISO / dmesg 相对秒 / uart @TICK / legacy epoch
+    方括号四种时间戳；只保留时间戳 <= failed_at_utc 的行，无法识别的行保守保留。"""
+    boot_s = _boot_utc()
     kept: list[bytes] = []
     for line in data.splitlines():
-        match = _TIMESTAMP_RE.match(line.decode("utf-8", errors="replace"))
-        if match is None or int(match.group(1)) <= failed_at_utc:
+        epoch = _line_epoch(line.decode("utf-8", errors="replace"), boot_s)
+        if epoch is None or epoch <= failed_at_utc:
             kept.append(line)
     return b"\n".join(kept)
 
