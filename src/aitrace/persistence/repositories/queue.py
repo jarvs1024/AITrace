@@ -40,6 +40,18 @@ class QueueRepository:
             duration_seconds=max(duration, 0.0),
         )
 
+    def _fencing_reject(self) -> None:
+        if self._metrics is not None:
+            self._metrics.counter("fencing_reject_total").inc()
+
+    def _record_finish(self, state: QueueState, error: dict[str, object] | None) -> None:
+        if self._metrics is None:
+            return
+        self._metrics.counter(f"task_finish_total:{state}").inc()
+        code = (error or {}).get("code")
+        if isinstance(code, str):
+            self._metrics.counter(f"task_finish_errors:{code}").inc()
+
     def ensure_user_queue(self, queue_key: str, now: datetime) -> None:
         self._session.execute(
             insert(UserQueue)
@@ -165,6 +177,7 @@ class QueueRepository:
             select(TaskQueue).where(TaskQueue.task_id == task_id).with_for_update()
         ).scalar_one_or_none()
         if row is None or row.lease_owner != owner or row.lease_generation != generation:
+            self._fencing_reject()
             return False
         was_ai = row.queue_state == QueueState.AI_RUNNING
         entered_at = row.updated_at
@@ -179,6 +192,7 @@ class QueueRepository:
             self._release_slot(row.queue_key, now)
         self._session.flush()
         self._emit(row, from_state, state, entered_at, now)
+        self._record_finish(state, error)
         return True
 
     def retry(
@@ -193,6 +207,7 @@ class QueueRepository:
             select(TaskQueue).where(TaskQueue.task_id == task_id).with_for_update()
         ).scalar_one()
         if row.lease_owner != owner or row.lease_generation != generation:
+            self._fencing_reject()
             raise ValueError("租约已被回收，重试写入被 fencing 拒绝")
         was_ai = row.queue_state == QueueState.AI_RUNNING
         entered_at = row.updated_at
@@ -298,6 +313,7 @@ class QueueRepository:
             select(TaskQueue).where(TaskQueue.task_id == task_id).with_for_update()
         ).scalar_one()
         if row.lease_owner != owner or row.lease_generation != generation:
+            self._fencing_reject()
             raise ValueError("租约已被回收，重试写入被 fencing 拒绝")
         entered_at = row.updated_at
         from_state = str(row.queue_state)

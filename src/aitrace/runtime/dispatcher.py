@@ -16,6 +16,7 @@ from aitrace.cleaning.worker import CleaningWorker
 from aitrace.core.settings import Settings, SettingsError
 from aitrace.knowledge.materialize import MemoryMaterializeWorker
 from aitrace.notify.worker import NotifyWorker, build_notify_config_fetcher, build_notify_poster
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.persistence.repositories.queue import QueueRepository
 from aitrace.scheduling.batch_close import close_batch_if_done
 from aitrace.scheduling.pause import abandon_stalled, recover_paused
@@ -34,6 +35,7 @@ def build_ai_worker(
     *,
     ids: Any,
     token_transport: httpx.BaseTransport | None = None,
+    metrics: MetricsRegistry | None = None,
 ) -> AIWorker:
     adapter: Any
     if settings.ai.edition == "fake":
@@ -52,10 +54,13 @@ def build_ai_worker(
         base_dir=settings.storage.data_dir,
         query_timeout=float(settings.ai.query_timeout_seconds),
         ids=ids,
+        metrics=metrics,
     )
 
 
-def build_callback_worker(settings: Settings) -> CallbackWorker:
+def build_callback_worker(
+    settings: Settings, *, metrics: MetricsRegistry | None = None
+) -> CallbackWorker:
     read_token = settings.aitest.read_token.get_secret_value() if settings.aitest.read_token else ""
     return CallbackWorker(
         client_factory=lambda: httpx.Client(
@@ -63,15 +68,19 @@ def build_callback_worker(settings: Settings) -> CallbackWorker:
         ),
         base_url=settings.aitest.base_url,
         read_token=read_token,
+        metrics=metrics,
     )
 
 
-def build_notify_worker(settings: Settings, *, clock: Any | None = None) -> NotifyWorker:
+def build_notify_worker(
+    settings: Settings, *, clock: Any | None = None, metrics: MetricsRegistry | None = None
+) -> NotifyWorker:
     return NotifyWorker(
         None,
         build_notify_config_fetcher(settings.aitest),
         build_notify_poster(),
         clock=clock,
+        metrics=metrics,
     )
 
 
@@ -84,7 +93,7 @@ def run_tick(session: Session, state: Any, owner: str) -> None:
     settings: Settings = state.settings
     now = state.clock.now()
     ids = state.ids
-    queue = QueueRepository(session)
+    queue = QueueRepository(session, metrics=getattr(state, "metrics", None))
 
     CleaningWorker(queue, state.cleaning_registry, state.cutoff_rules).run_once(
         session, clock=state.clock, ids=ids, data_dir=settings.storage.data_dir, owner=owner
@@ -110,6 +119,6 @@ def run_tick(session: Session, state: Any, owner: str) -> None:
         notify_worker.run_once(session, queue, now, owner)
 
     # 独立队列：反馈闭环入队 MEMORY_MATERIALIZE，材料化热记忆文件（temp+rename 原子替换）
-    MemoryMaterializeWorker(queue).run_once(
+    MemoryMaterializeWorker(queue, metrics=getattr(state, "metrics", None)).run_once(
         session, data_dir=settings.storage.data_dir, owner=owner, now=now
     )

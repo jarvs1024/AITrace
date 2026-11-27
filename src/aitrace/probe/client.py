@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from re import Pattern
 
 from aitrace.core.audit import AuditService
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.probe.whitelist import DENY_PATTERNS, GLOBAL_PROBE_WHITELIST
 
 Runner = Callable[[str, str], tuple[int, str, str]]
@@ -69,6 +70,7 @@ class ProbeClient:
         profile_whitelist: list[str] | None = None,
         connect_timeout: int = 5,
         command_timeout: int = 10,
+        registry: MetricsRegistry | None = None,
     ) -> None:
         self._runner = runner or build_ssh_runner(
             connect_timeout=connect_timeout, command_timeout=command_timeout
@@ -80,11 +82,23 @@ class ProbeClient:
         self._deny: list[Pattern[str]] = [re.compile(pattern) for pattern in DENY_PATTERNS]
         self._profile = list(profile_whitelist or [])
         self._audit = audit
+        self._registry = registry
+
+    def _record(self, ok: bool) -> None:
+        if self._registry is None:
+            return
+        key = "probe_ok" if ok else "probe_fail"
+        self._registry.counter(f"{key}_total").inc()
+        if ok:
+            self._registry.gauge("probe_age_seconds").set(0.0)
+        else:
+            self._registry.window_counter(key).inc()
 
     def run(self, *, host: str, command: str, session_id: str) -> ProbeResult:
         command = command.strip()
         deny = next((pattern for pattern in self._deny if pattern.search(command)), None)
         if deny is not None:
+            self._record(ok=False)
             self._audit_denied(host, command, session_id, f"命中禁用模式 {deny.pattern!r}")
             raise ProbeDenied(
                 "探针命令被拒绝（PROBE_FORBIDDEN）："
@@ -93,6 +107,7 @@ class ProbeClient:
                 "要求：仅允许只读诊断命令"
             )
         if not any(pattern.fullmatch(command) for pattern in self._global):
+            self._record(ok=False)
             self._audit_denied(host, command, session_id, "不在全局白名单")
             raise ProbeDenied(
                 "探针命令被拒绝（PROBE_FORBIDDEN）："
@@ -105,6 +120,7 @@ class ProbeClient:
         )
         if not profile_ok:
             allowed = "、".join(self._profile) or "<空>"
+            self._record(ok=False)
             self._audit_denied(host, command, session_id, f"不在画像白名单（{allowed}）")
             raise ProbeDenied(
                 "探针命令被拒绝（PROBE_FORBIDDEN）："
@@ -115,6 +131,7 @@ class ProbeClient:
         try:
             exit_code, stdout, stderr = self._runner(host, command)
         except (subprocess.TimeoutExpired, TimeoutError):
+            self._record(ok=False)
             self._audit.append(
                 actor="probe",
                 action="SSH_PROBE_TIMEOUT",
@@ -137,6 +154,7 @@ class ProbeClient:
                 "bytes": len(stdout or ""),
             },
         )
+        self._record(ok=exit_code == 0)
         return ProbeResult(
             command=command,
             exit_code=int(exit_code),

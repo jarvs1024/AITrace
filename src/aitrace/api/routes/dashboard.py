@@ -8,9 +8,20 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from aitrace.api.deps import get_clock, get_session, require_service_token
+from aitrace.api.deps import (
+    get_audit,
+    get_clock,
+    get_metrics,
+    get_session,
+    get_settings,
+    require_service_token,
+)
 from aitrace.api.schemas import DashboardSummaryResponse
+from aitrace.core.audit import AuditService
 from aitrace.core.ids import SystemClock
+from aitrace.core.settings import Settings
+from aitrace.observability.metrics import MetricsRegistry
+from aitrace.observability.monitor import build_monitor_snapshot
 from aitrace.persistence.models import (
     CaseLibrary,
     Report,
@@ -197,6 +208,13 @@ def build_dashboard(session: Session, now: datetime, product_id: str | None) -> 
 def dashboard_summary(
     session: Annotated[Session, Depends(get_session)],
     clock: Annotated[SystemClock, Depends(get_clock)],
+    metrics: Annotated[MetricsRegistry, Depends(get_metrics)],
+    audit: Annotated[AuditService | None, Depends(get_audit)],
+    settings: Annotated[Settings, Depends(get_settings)],
     product_id: str | None = None,
 ) -> DashboardSummaryResponse:
-    return DashboardSummaryResponse(**build_dashboard(session, clock.now(), product_id))
+    body = build_dashboard(session, clock.now(), product_id)
+    body["monitoring"] = build_monitor_snapshot(
+        session, metrics, settings, now=clock.now(), audit=audit
+    )
+    return DashboardSummaryResponse(**body)

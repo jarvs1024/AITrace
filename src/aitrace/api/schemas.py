@@ -153,6 +153,19 @@ class DashboardSummaryResponse(_StrictModel):
     knowledge: dict[str, Any]
     runtime: dict[str, Any]
     confidence_histogram: dict[str, int]
+    monitoring: dict[str, Any] | None = None
+
+
+class MonitorSnapshotResponse(_StrictModel):
+    generated_at: str
+    runtime: dict[str, Any]
+    waits: dict[str, dict[str, list[float]]]
+    fairness: dict[str, Any]
+    alerts_eligible: dict[str, Any]
+    watermark: dict[str, Any]
+    callbacks: dict[str, Any]
+    workers: dict[str, Any]
+    audit: dict[str, Any]
 
 
 _ROOT_CAUSE_CATEGORIES = Literal[

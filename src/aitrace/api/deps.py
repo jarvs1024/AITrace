@@ -7,9 +7,11 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from aitrace.core.audit import AuditService
 from aitrace.core.errors import AitraceError
 from aitrace.core.ids import SystemClock, UuidIdGenerator
 from aitrace.core.settings import Settings
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.profiles.resolver import ProfileResolver
 
 _bearer = HTTPBearer(auto_error=False)
@@ -34,6 +36,14 @@ def get_clock(request: Request) -> SystemClock:
 
 def get_ids(request: Request) -> UuidIdGenerator:
     return request.app.state.ids
+
+
+def get_metrics(request: Request) -> MetricsRegistry:
+    return request.app.state.metrics
+
+
+def get_audit(request: Request) -> AuditService | None:
+    return getattr(request.app.state, "audit", None)
 
 
 def require_service_token(

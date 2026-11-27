@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 
 import httpx
 
+from aitrace.observability.metrics import MetricsRegistry
+
 _RETRYABLE_CODES = {"TOKEN_INVALID", "TOKEN_EXPIRED", "TOKEN_RATE_LIMITED"}
 
 
@@ -38,11 +40,20 @@ class TokenFetchClient:
         read_token: str,
         timeout_seconds: float,
         transport: httpx.BaseTransport | None = None,
+        registry: MetricsRegistry | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._read_token = read_token
         self._timeout = timeout_seconds
         self._transport = transport
+        self._registry = registry
+
+    def _record_fetch(self, ok: bool) -> None:
+        if self._registry is None:
+            return
+        key = "token_fetch_ok" if ok else "token_fetch_fail"
+        self._registry.counter(f"{key}_total").inc()
+        self._registry.window_counter(key).inc()
 
     def fetch(
         self,
@@ -70,6 +81,7 @@ class TokenFetchClient:
                     headers={"X-Aitest-Read-Token": self._read_token},
                 )
             except httpx.HTTPError as exc:
+                self._record_fetch(ok=False)
                 raise TokenFetchError(
                     "TIMEOUT", f"令牌接口不可达：{type(exc).__name__}", retryable=True
                 ) from exc
@@ -78,13 +90,17 @@ class TokenFetchClient:
             token = body.get("token")
             expires_at = body.get("expires_at")
             if not isinstance(token, str) or not token:
+                self._record_fetch(ok=False)
                 raise TokenFetchError("BAD_GRANT", "令牌接口返回缺少 token 字段", retryable=False)
             parsed = _parse_expiry(expires_at)
             if parsed is None:
+                self._record_fetch(ok=False)
                 raise TokenFetchError(
                     "BAD_GRANT", "令牌接口返回的 expires_at 非法", retryable=False
                 )
+            self._record_fetch(ok=True)
             return TokenGrant(token=token, expires_at=parsed)
+        self._record_fetch(ok=False)
         code = str(body.get("code") or "UNKNOWN")
         message = str(body.get("message") or "令牌接口返回错误")
         retryable = code in _RETRYABLE_CODES or response.status_code >= 500

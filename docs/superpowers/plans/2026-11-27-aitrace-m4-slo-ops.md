@@ -726,6 +726,12 @@ git push
 | --- | --- |
 | T1 观测底座 | commit 44f2ded；`make verify` 全绿（当时 362 通过）；tests/unit/test_observability.py 15 用例含令牌掩码、直方图最近秩、阶段事件双落（指标+日志） |
 | T2 水位+背压 | commit（见本轮提交）；tests/unit/test_watermark.py 8 用例 + tests/integration/test_backpressure.py 4 用例全绿；`make verify`：368 passed + 26 contract + 4 e2e，coverage 94.98%；实测 429 QUEUE_FULL（全局深度 5、单令牌深度 1，retry_after=60）、507 DISK_FULL（quota 1000B/占用 900B）；WARN 档（70%）触发仅清 TTL、FORCE 档按 未评价→无效→有效 顺序淘汰且不碰 RUNNING 批次 |
+| T3 监控快照 | commit（见本轮提交）；新增 tests/unit/test_monitor.py 8 用例 + tests/integration/test_monitor_api.py 4 用例全绿；`make verify`：lint 全过、380 passed + 26 contract + 4 e2e，coverage 94.81%；`GET /api/v1/aitrace/monitor` 401/403 守卫生效、200 返回 9 键快照（default 库全零）；dashboard summary 增 monitoring 段；契约 diff 为纯新增（76 行增 0 删）；快照仅含计数/耗时/比例，无令牌等敏感值（测试逐键断言） |
+
+裁决记录（T3）：
+- 等待分桶 0 值桶与无数据桶同样返回空映射而非省略，保证 9 键结构稳定（前端免判空）。
+- `audit=None`（未注入）时 `audit.verified` 返回 null，不伪造通过；看板呈现「未注入」而非「未校验」。
+- 公平性 gap 仅在桶内 ≥2 个队列键时计算，单键桶 gap=0.0（P95 差无定义）。
 
 裁决记录（T2）：
 - `IngestService.deliver` 增 `pre_checks: list[Callable[[], None]] | None`，背压闭包在路由层构建（含 levels 顺序：全局深度→单令牌深度→磁盘水位），不侵入 ingest 内部逻辑。

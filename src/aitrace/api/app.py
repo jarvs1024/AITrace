@@ -13,10 +13,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from aitrace.api.errors import install_error_handlers
-from aitrace.api.routes import dashboard, deliveries, feedback, health, session_ops, sessions
+from aitrace.api.routes import (
+    dashboard,
+    deliveries,
+    feedback,
+    health,
+    monitor,
+    session_ops,
+    sessions,
+)
 from aitrace.cleaning.registry import CleaningRegistry
+from aitrace.core.audit import AuditService
 from aitrace.core.ids import SystemClock, UuidIdGenerator
 from aitrace.core.settings import Settings, load_settings
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.profiles.loader import load_profiles
 from aitrace.profiles.resolver import ProfileResolver
 from aitrace.runtime.dispatcher import (
@@ -87,12 +97,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.clock = SystemClock()
     app.state.ids = UuidIdGenerator()
     app.state.profile_resolver = ProfileResolver(registry)
+    app.state.metrics = MetricsRegistry()
+    app.state.audit = AuditService(session_factory)
     if settings.runtime.enabled:
         app.state.cutoff_rules = build_cutoff_rules(settings)
         app.state.cleaning_registry = CleaningRegistry()
-        app.state.ai_worker = build_ai_worker(settings, ids=app.state.ids)
-        app.state.callback_worker = build_callback_worker(settings)
-        app.state.notify_worker = build_notify_worker(settings, clock=app.state.clock)
+        app.state.ai_worker = build_ai_worker(
+            settings, ids=app.state.ids, metrics=app.state.metrics
+        )
+        app.state.callback_worker = build_callback_worker(settings, metrics=app.state.metrics)
+        app.state.notify_worker = build_notify_worker(
+            settings, clock=app.state.clock, metrics=app.state.metrics
+        )
     install_error_handlers(app)
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(deliveries.router, prefix="/api/v1")
@@ -100,4 +116,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(session_ops.router, prefix="/api/v1")
     app.include_router(dashboard.router, prefix="/api/v1")
     app.include_router(feedback.router, prefix="/api/v1")
+    app.include_router(monitor.router, prefix="/api/v1")
     return app

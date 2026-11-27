@@ -227,6 +227,21 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/v1/aitrace/monitor:
+    get:
+      tags:
+      - monitor
+      summary: Monitor Snapshot
+      operationId: monitor_snapshot_api_v1_aitrace_monitor_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorSnapshotResponse'
+      security:
+      - HTTPBearer: []
 components:
   schemas:
     AttachmentUploadResponse:
@@ -304,6 +319,12 @@ components:
             type: integer
           type: object
           title: Confidence Histogram
+        monitoring:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Monitoring
       additionalProperties: false
       type: object
       required:
@@ -622,6 +643,61 @@ components:
       additionalProperties: false
       type: object
       title: LogPaths
+    MonitorSnapshotResponse:
+      properties:
+        generated_at:
+          type: string
+          title: Generated At
+        runtime:
+          additionalProperties: true
+          type: object
+          title: Runtime
+        waits:
+          additionalProperties:
+            additionalProperties:
+              items:
+                type: number
+              type: array
+            type: object
+          type: object
+          title: Waits
+        fairness:
+          additionalProperties: true
+          type: object
+          title: Fairness
+        alerts_eligible:
+          additionalProperties: true
+          type: object
+          title: Alerts Eligible
+        watermark:
+          additionalProperties: true
+          type: object
+          title: Watermark
+        callbacks:
+          additionalProperties: true
+          type: object
+          title: Callbacks
+        workers:
+          additionalProperties: true
+          type: object
+          title: Workers
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
+      additionalProperties: false
+      type: object
+      required:
+      - generated_at
+      - runtime
+      - waits
+      - fairness
+      - alerts_eligible
+      - watermark
+      - callbacks
+      - workers
+      - audit
+      title: MonitorSnapshotResponse
     PassedCase:
       properties:
         case_id:

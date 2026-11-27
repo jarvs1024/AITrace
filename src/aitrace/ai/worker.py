@@ -40,6 +40,7 @@ from aitrace.core.enums import QueueState, Stage
 from aitrace.core.settings import AISettings, AitestSettings
 from aitrace.knowledge.prescreen import MemoryHit, prescreen_case_library
 from aitrace.notify.enqueue import enqueue_case_notify
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.persistence.models import (
     Batch,
     Profile,
@@ -92,6 +93,7 @@ class AIWorker:
         base_dir: Path,
         query_timeout: float,
         ids: Any,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._settings = settings
         self._aitest = aitest
@@ -100,9 +102,10 @@ class AIWorker:
         self._base_dir = base_dir
         self._query_timeout = query_timeout
         self._ids = ids
+        self._metrics = metrics
 
     def run_once(self, session: Session, now: datetime, owner: str) -> int:
-        queue = QueueRepository(session)
+        queue = QueueRepository(session, metrics=self._metrics)
         task = queue.claim_ai(owner, now)
         if task is None:
             return 0
@@ -277,6 +280,7 @@ class AIWorker:
             ),
             timeout_seconds=self._aitest.timeout_seconds,
             transport=self._token_transport,
+            registry=self._metrics,
         )
         try:
             return client.fetch(

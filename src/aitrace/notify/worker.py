@@ -14,6 +14,7 @@ from aitrace.core.enums import QueueState, TaskType
 from aitrace.core.ids import SystemClock
 from aitrace.core.settings import AitestSettings
 from aitrace.notify.cards import NotifyConfig, build_card
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.persistence.models import Batch, Round, SessionModel, TaskQueue
 from aitrace.persistence.repositories.queue import QueueRepository
 
@@ -39,6 +40,7 @@ class NotifyWorker:
         cache_ttl: int = 300,
         default_webhook: str | None = None,
         clock: Any | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._queue = queue
         self._config_fetcher = config_fetcher
@@ -46,6 +48,7 @@ class NotifyWorker:
         self._cache_ttl = cache_ttl
         self._default_webhook = default_webhook
         self._clock = clock if clock is not None else SystemClock()
+        self._metrics = metrics
         self._config_cache: dict[str, tuple[datetime, NotifyConfig]] = {}
         # 进程内按 batch_id 聚合：completed 计数 / 结论行 / 否定追加行
         self._agg: dict[str, dict[str, Any]] = {}
@@ -70,6 +73,9 @@ class NotifyWorker:
             return 1
         except Exception as exc:  # 降级：任何失败只伤本任务
             logger.warning("notify 任务失败 task_id=%s error=%s", task.task_id, exc)
+            if self._metrics is not None:
+                self._metrics.counter("notify_fail_total").inc()
+                self._metrics.window_counter("notify_fail").inc()
             self._requeue_or_fail(session, task, now, exc)
             return 0
 

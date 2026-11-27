@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aitrace.core.enums import QueueState, TaskType
+from aitrace.observability.metrics import MetricsRegistry
 from aitrace.persistence.models import CaseLibrary, MemoryHotFile
 from aitrace.persistence.repositories.queue import QueueRepository
 
@@ -20,9 +21,12 @@ def _namespace_stem(domain_id: str) -> str:
 
 
 class MemoryMaterializeWorker:
-    def __init__(self, queue: QueueRepository, *, top_n: int = 200) -> None:
+    def __init__(
+        self, queue: QueueRepository, *, top_n: int = 200, metrics: MetricsRegistry | None = None
+    ) -> None:
         self._queue = queue
         self._top_n = top_n
+        self._metrics = metrics
 
     def hot_file_path(self, data_dir: Path, domain_id: str) -> Path:
         return data_dir / "memory" / f"{_namespace_stem(domain_id)}.json"
@@ -75,8 +79,14 @@ class MemoryMaterializeWorker:
         if task is None:
             return 0
         domain_id = (task.payload or {}).get("domain_id") or task.queue_key
-        self.refresh_domain(session, domain_id, data_dir=data_dir, now=now)
-        self._queue.finish(
-            task.task_id, task.lease_owner or "", task.lease_generation, QueueState.DONE, now
-        )
+        try:
+            self.refresh_domain(session, domain_id, data_dir=data_dir, now=now)
+            self._queue.finish(
+                task.task_id, task.lease_owner or "", task.lease_generation, QueueState.DONE, now
+            )
+        except Exception:
+            if self._metrics is not None:
+                self._metrics.counter("memory_materialize_fail_total").inc()
+                self._metrics.window_counter("memory_materialize_fail").inc()
+            raise
         return 1
