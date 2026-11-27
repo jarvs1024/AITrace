@@ -113,6 +113,15 @@ def create_tasks(
     ids: Annotated[UuidIdGenerator, Depends(get_ids)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DeliveryResponse:
+    grayscale = settings.grayscale
+    if grayscale.enabled and payload.product_id not in grayscale.product_ids:
+        allowed = "、".join(grayscale.product_ids) or "<空>"
+        raise AitraceError(
+            "GRAYSCALE_BLOCKED",
+            f"灰度发布阶段：当前产品线 {payload.product_id} 不在放行清单（{allowed}）内，"
+            "该产品线尚未开启投递，请联系 AITrace 管理员加入灰度清单",
+            http_status=403,
+        )
     pre_checks = _build_backpressure_checks(
         session, settings, queue_key=payload.trigger_user_id, clock=clock
     )

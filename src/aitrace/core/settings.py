@@ -251,6 +251,14 @@ class BackupSettings(BaseModel):
     min_free_bytes: int = Field(default=4 * 1024**3, ge=0)
 
 
+class GrayscaleSettings(BaseModel):
+    """spec §10.1 M5 灰度放行闸：enabled 开启后仅放行 product_ids 内产品线。"""
+
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = False
+    product_ids: list[str] = Field(default_factory=list)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="AITRACE_",
@@ -273,6 +281,7 @@ class Settings(BaseSettings):
     slo: SloSettings = Field(default_factory=SloSettings)
     monitor: MonitorSettings = Field(default_factory=MonitorSettings)
     backup: BackupSettings = Field(default_factory=BackupSettings)
+    grayscale: GrayscaleSettings = Field(default_factory=GrayscaleSettings)
     release_root: Path | None = None
 
     @model_validator(mode="after")
