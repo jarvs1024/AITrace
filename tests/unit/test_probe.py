@@ -57,6 +57,7 @@ def client(audit: AuditService) -> ProbeClient:
             "df -h",
             "ps -ef | grep",
         ],
+        host_allowlist=["10.0.0.0/24"],
     )
 
 
@@ -100,13 +101,23 @@ class TestWhitelistAllow:
 
 class TestProfileIntersection:
     def test_empty_profile_denies_all(self, audit: AuditService) -> None:
-        client = ProbeClient(runner=_sentinel_runner, audit=audit, profile_whitelist=[])
+        client = ProbeClient(
+            runner=_sentinel_runner,
+            audit=audit,
+            profile_whitelist=[],
+            host_allowlist=["10.0.0.0/24"],
+        )
         with pytest.raises(ProbeDenied) as caught:
             client.run(host="10.0.0.1", command="nvme list", session_id="s-1")
         assert caught.value.code == "PROBE_FORBIDDEN"
 
     def test_profile_none_treated_as_empty(self, audit: AuditService) -> None:
-        client = ProbeClient(runner=_sentinel_runner, audit=audit, profile_whitelist=None)
+        client = ProbeClient(
+            runner=_sentinel_runner,
+            audit=audit,
+            profile_whitelist=None,
+            host_allowlist=["10.0.0.0/24"],
+        )
         with pytest.raises(ProbeDenied):
             client.run(host="10.0.0.1", command="nvme list", session_id="s-1")
 
@@ -115,6 +126,7 @@ class TestProfileIntersection:
             runner=_sentinel_runner,
             audit=audit,
             profile_whitelist=["nvme list", "smartctl -a"],
+            host_allowlist=["10.0.0.0/24"],
         )
         with pytest.raises(ProbeDenied):
             client.run(host="10.0.0.1", command="cxl list", session_id="s-1")
@@ -124,6 +136,7 @@ class TestProfileIntersection:
             runner=_sentinel_runner,
             audit=audit,
             profile_whitelist=["nvme id-ctrl", "nvme list"],
+            host_allowlist=["10.0.0.0/24"],
         )
         result = client.run(host="10.0.0.1", command="nvme id-ctrl /dev/nvme0n1", session_id="s-1")
         assert result.exit_code == 0
@@ -157,7 +170,12 @@ class TestAuditAndResult:
         assert detail["bytes"] == len("stdout 正常")
 
     def test_denied_probe_is_audited(self, audit: AuditService, db_engine: Engine) -> None:
-        client = ProbeClient(runner=_sentinel_runner, audit=audit, profile_whitelist=["nvme list"])
+        client = ProbeClient(
+            runner=_sentinel_runner,
+            audit=audit,
+            profile_whitelist=["nvme list"],
+            host_allowlist=["10.0.0.0/24"],
+        )
         with pytest.raises(ProbeDenied):
             client.run(host="10.0.0.1", command="reboot", session_id="s-2")
         assert audit.verify_chain() is True
@@ -180,6 +198,7 @@ class TestAuditAndResult:
             runner=slow_runner,
             audit=audit,
             profile_whitelist=["nvme list"],
+            host_allowlist=["10.0.0.0/24"],
         )
         with pytest.raises(ProbeTimeout) as caught:
             client.run(host="10.0.0.1", command="nvme list", session_id="s-3")
@@ -196,7 +215,12 @@ class TestAuditAndResult:
         def timeouter(host: str, command: str) -> tuple[int, str, str]:
             raise TimeoutError("死等")
 
-        client = ProbeClient(runner=timeouter, audit=audit, profile_whitelist=["nvme list"])
+        client = ProbeClient(
+            runner=timeouter,
+            audit=audit,
+            profile_whitelist=["nvme list"],
+            host_allowlist=["10.0.0.0/24"],
+        )
         with pytest.raises(ProbeTimeout):
             client.run(host="10.0.0.1", command="nvme list", session_id="s-4")
 

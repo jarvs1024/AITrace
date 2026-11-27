@@ -10,6 +10,7 @@ from re import Pattern
 
 from aitrace.core.audit import AuditService
 from aitrace.observability.metrics import MetricsRegistry
+from aitrace.probe.assets import host_in_assets
 from aitrace.probe.whitelist import DENY_PATTERNS, GLOBAL_PROBE_WHITELIST
 
 Runner = Callable[[str, str], tuple[int, str, str]]
@@ -71,6 +72,8 @@ class ProbeClient:
         connect_timeout: int = 5,
         command_timeout: int = 10,
         registry: MetricsRegistry | None = None,
+        host_allowlist: list[str] | None = None,
+        allow_loopback: bool | None = None,
     ) -> None:
         self._runner = runner or build_ssh_runner(
             connect_timeout=connect_timeout, command_timeout=command_timeout
@@ -83,6 +86,8 @@ class ProbeClient:
         self._profile = list(profile_whitelist or [])
         self._audit = audit
         self._registry = registry
+        self._host_allowlist = list(host_allowlist or [])
+        self._allow_loopback = allow_loopback if allow_loopback is not None else True
 
     def _record(self, ok: bool) -> None:
         if self._registry is None:
@@ -95,6 +100,18 @@ class ProbeClient:
             self._registry.window_counter(key).inc()
 
     def run(self, *, host: str, command: str, session_id: str) -> ProbeResult:
+        if not host_in_assets(host, self._host_allowlist, allow_loopback=self._allow_loopback):
+            allowed = "、".join(self._host_allowlist) or "<空>"
+            self._record(ok=False)
+            self._audit_denied(
+                host, command, session_id, f"不在主机资产范围（host_allowlist：{allowed}）"
+            )
+            raise ProbeDenied(
+                "探针目标主机被拒绝（PROBE_FORBIDDEN）："
+                f"当前主机 {host}；原因：不在已知测试机资产范围（host_allowlist）内；"
+                f"允许范围：{allowed}；允许回环：{'是' if self._allow_loopback else '否'}；"
+                "要求：仅允许对已登记资产执行只读探测，防止伪造投递驱动 SSH 横向移动"
+            )
         command = command.strip()
         deny = next((pattern for pattern in self._deny if pattern.search(command)), None)
         if deny is not None:

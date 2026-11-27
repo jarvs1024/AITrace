@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -11,6 +12,7 @@ from pydantic import (
     Field,
     SecretStr,
     ValidationError,
+    field_validator,
     model_validator,
 )
 from pydantic_settings import (
@@ -189,8 +191,23 @@ class RuntimeSettings(BaseModel):
 class ProbeSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     global_whitelist: list[str] = Field(default_factory=lambda: list(GLOBAL_PROBE_WHITELIST))
+    host_allowlist: list[str] = Field(default_factory=list)
+    allow_loopback: bool = Field(default=True)
     connect_timeout_seconds: int = Field(default=5, ge=1, le=60)
     command_timeout_seconds: int = Field(default=10, ge=1, le=300)
+
+    @field_validator("host_allowlist")
+    @classmethod
+    def _valid_asset_entries(cls, value: list[str]) -> list[str]:
+        for entry in value:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    f"probe.host_allowlist 条目非法：{entry!r}"
+                    f"（须为 IP 或 CIDR，如 10.0.0.0/24）：{exc}"
+                ) from exc
+        return value
 
 
 class SloSettings(BaseModel):
