@@ -1,0 +1,460 @@
+openapi: 3.1.0
+info:
+  title: AITrace
+  version: 0.1.0
+paths:
+  /api/v1/health:
+    get:
+      tags:
+      - health
+      summary: Health
+      operationId: health_api_v1_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Api V1 Health Get
+  /api/v1/aitrace/tasks:
+    post:
+      tags:
+      - delivery
+      summary: Create Tasks
+      operationId: create_tasks_api_v1_aitrace_tasks_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryPayload'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/aitrace/tasks/{session_id}:
+    get:
+      tags:
+      - sessions
+      summary: Get Session Status
+      operationId: get_session_status_api_v1_aitrace_tasks__session_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    DeliveryPayload:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        batch_id:
+          type: string
+          minLength: 1
+          title: Batch Id
+        trigger_user_id:
+          type: string
+          minLength: 1
+          title: Trigger User Id
+        hardware_type:
+          type: string
+          enum:
+          - SSD
+          - CXL
+          title: Hardware Type
+        env_topology:
+          $ref: '#/components/schemas/EnvTopology'
+        git_context:
+          $ref: '#/components/schemas/GitContext'
+        failed_cases:
+          items:
+            $ref: '#/components/schemas/FailedCase'
+          type: array
+          minItems: 1
+          title: Failed Cases
+        passed_cases:
+          items:
+            $ref: '#/components/schemas/PassedCase'
+          type: array
+          title: Passed Cases
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - batch_id
+      - trigger_user_id
+      - hardware_type
+      - env_topology
+      - git_context
+      - failed_cases
+      title: DeliveryPayload
+    DeliveryResponse:
+      properties:
+        accepted:
+          type: boolean
+          title: Accepted
+        batch_task_id:
+          type: string
+          title: Batch Task Id
+        sessions:
+          items:
+            $ref: '#/components/schemas/SessionResult'
+          type: array
+          title: Sessions
+        rejected:
+          items:
+            $ref: '#/components/schemas/RejectedCase'
+          type: array
+          title: Rejected
+      additionalProperties: false
+      type: object
+      required:
+      - accepted
+      - batch_task_id
+      - sessions
+      title: DeliveryResponse
+    DeviceInfo:
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          title: Device Id
+        pcie_bdf:
+          type: string
+          minLength: 1
+          title: Pcie Bdf
+        device_node:
+          type: string
+          minLength: 1
+          title: Device Node
+        model:
+          type: string
+          minLength: 1
+          title: Model
+        sn:
+          type: string
+          minLength: 1
+          title: Sn
+        fw_version:
+          type: string
+          minLength: 1
+          title: Fw Version
+        slot:
+          type: string
+          minLength: 1
+          title: Slot
+      additionalProperties: false
+      type: object
+      required:
+      - device_id
+      - pcie_bdf
+      - device_node
+      - model
+      - sn
+      - fw_version
+      - slot
+      title: DeviceInfo
+    EnvTopology:
+      properties:
+        host_ip:
+          type: string
+          title: Host Ip
+        host_boot_time_utc:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Host Boot Time Utc
+        devices:
+          items:
+            $ref: '#/components/schemas/DeviceInfo'
+          type: array
+          minItems: 1
+          title: Devices
+      additionalProperties: false
+      type: object
+      required:
+      - host_ip
+      - host_boot_time_utc
+      - devices
+      title: EnvTopology
+    FailedCase:
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+          title: Case Id
+        script_path:
+          type: string
+          minLength: 1
+          title: Script Path
+        failed_at_utc:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Failed At Utc
+        env_binding:
+          additionalProperties:
+            type: string
+          type: object
+          title: Env Binding
+        logs:
+          $ref: '#/components/schemas/LogPaths'
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - script_path
+      - failed_at_utc
+      - env_binding
+      - logs
+      title: FailedCase
+    GitContext:
+      properties:
+        repo_url:
+          type: string
+          minLength: 1
+          title: Repo Url
+        commit_id:
+          type: string
+          minLength: 1
+          title: Commit Id
+      additionalProperties: false
+      type: object
+      required:
+      - repo_url
+      - commit_id
+      title: GitContext
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LogPaths:
+      properties:
+        test_log_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Test Log Path
+        uart_log_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Uart Log Path
+        kernel_log_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Kernel Log Path
+        scheduler_log_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Log Path
+      additionalProperties: false
+      type: object
+      title: LogPaths
+    PassedCase:
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+          title: Case Id
+        script_path:
+          type: string
+          minLength: 1
+          title: Script Path
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - script_path
+      title: PassedCase
+    RejectedCase:
+      properties:
+        case_id:
+          type: string
+          title: Case Id
+        code:
+          type: string
+          title: Code
+        message:
+          type: string
+          title: Message
+        retryable:
+          type: boolean
+          title: Retryable
+        retry_after:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Retry After
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - code
+      - message
+      - retryable
+      title: RejectedCase
+    SessionResult:
+      properties:
+        case_id:
+          type: string
+          title: Case Id
+        session_id:
+          type: string
+          title: Session Id
+        is_existing:
+          type: boolean
+          title: Is Existing
+        status:
+          type: string
+          enum:
+          - ACCEPTED
+          - EXISTING
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - session_id
+      - is_existing
+      - status
+      title: SessionResult
+    SessionStatusResponse:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+        batch_id:
+          type: string
+          title: Batch Id
+        case_id:
+          type: string
+          title: Case Id
+        product_id:
+          type: string
+          title: Product Id
+        hardware_type:
+          type: string
+          title: Hardware Type
+        domain_id:
+          type: string
+          title: Domain Id
+        profile_version:
+          type: string
+          title: Profile Version
+        round_no:
+          type: integer
+          title: Round No
+        stage:
+          type: string
+          title: Stage
+        progress:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Progress
+        waiting_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Waiting Reason
+        message:
+          type: string
+          title: Message
+        report:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Report
+        citation:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Citation
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - batch_id
+      - case_id
+      - product_id
+      - hardware_type
+      - domain_id
+      - profile_version
+      - round_no
+      - stage
+      - progress
+      - waiting_reason
+      - message
+      title: SessionStatusResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer

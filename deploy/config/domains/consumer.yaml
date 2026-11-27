@@ -1,0 +1,13 @@
+domain_id: consumer
+product_ids: [ufs]
+log_sources:
+  - {name: test, plugin: test_log}
+  - {name: dmesg, plugin: dmesg_log}
+anchor_keywords:
+  test: ["Traceback", "ERROR", "FAILED"]
+  dmesg: ["ufs", "link", "timeout"]
+analysis_focus: "消费级：UFS 链路与低功耗异常优先"
+skills_namespace: consumer_
+memory_namespace: "domain:consumer:"
+root_cause_enum: [TEST_ENV_ERROR, FW_DEFECT, SCRIPT_ISSUE, HW_DEFECT, OTHER]
+probe_whitelist: ["lspci -vv", "dmesg --read"]

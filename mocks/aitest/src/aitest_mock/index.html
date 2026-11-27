@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aitest Mock 控制台（知因链路演示）</title>
+<style>
+  body { margin: 0; background: #f5f6f8; color: #222; font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { background: #1f2937; color: #fff; padding: 14px 20px; }
+  header h1 { margin: 0; font-size: 18px; }
+  main { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+  .panel { background: #fff; border: 1px solid #e2e5ea; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .toolbar label { font-size: 13px; }
+  input { padding: 6px 8px; border: 1px solid #cbd2d9; border-radius: 6px; font-size: 13px; }
+  button { padding: 7px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 13px; }
+  button:hover { background: #1d4ed8; }
+  button.secondary { background: #6b7280; }
+  button.secondary:hover { background: #4b5563; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid #e2e5ea; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+  .failed { background: #fee2e2; color: #b91c1c; }
+  .passed { background: #dcfce7; color: #15803d; }
+  .done { background: #dcfce7; color: #15803d; }
+  .running { background: #dbeafe; color: #1d4ed8; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+  #errors { background: #7f1d1d; }
+  .muted { color: #6b7280; font-size: 12px; margin-top: 10px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+  .card { flex: 1 1 140px; background: #f8fafc; border: 1px solid #e2e5ea; border-radius: 8px; padding: 10px 12px; }
+  .card .num { font-size: 22px; font-weight: 600; color: #1f2937; }
+  .card .cap { font-size: 12px; color: #6b7280; }
+  .dist-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
+  .dist-name { width: 110px; text-align: right; color: #374151; }
+  .dist-bar { flex: 1; background: #e5e7eb; border-radius: 4px; height: 14px; overflow: hidden; }
+  .dist-fill { background: #2563eb; height: 100%; border-radius: 4px; }
+  .dist-count { width: 30px; color: #6b7280; }
+  .report-card { border: 1px solid #dbeafe; border-radius: 8px; padding: 10px 12px; margin-top: 8px; background: #f8fafc; }
+  .report-card h3 { margin: 0 0 8px; font-size: 14px; }
+  .k { color: #6b7280; font-size: 12px; }
+  .v { font-size: 13px; margin-bottom: 6px; }
+  .detail-trigger { padding: 2px 8px; font-size: 12px; background: #0ea5e9; }
+  .detail-trigger:hover { background: #0284c7; }
+</style>
+</head>
+<body>
+<header><h1>aitest Mock 控制台（推送到知因 · 解析结果与运营看板）</h1></header>
+<main>
+  <section class="panel">
+    <h2>用例清单</h2>
+    <div class="toolbar">
+      <label>读取令牌 <input id="read-token" value="mock-read-token" size="24"></label>
+      <label>batch_id <input id="batch-id" value="BATCH-20261120-0089" size="24"></label>
+      <button id="load-cases-btn" type="button">加载用例</button>
+    </div>
+    <div id="cases-panel" class="muted">尚未加载</div>
+  </section>
+  <section class="panel">
+    <h2>推送到知因</h2>
+    <div class="toolbar">
+      <button id="deliver-btn" type="button">推送到知因</button>
+      <button id="refresh-sessions-btn" type="button" class="secondary">刷新会话状态</button>
+    </div>
+    <div id="deliver-result" class="muted">尚未推送</div>
+    <div id="sessions-panel"></div>
+    <div id="session-detail"></div>
+  </section>
+  <section class="panel">
+    <h2>运营看板</h2>
+    <div class="toolbar">
+      <button id="refresh-stats-btn" type="button">刷新看板</button>
+    </div>
+    <div id="stats-panel" class="muted">尚未加载</div>
+  </section>
+  <section class="panel">
+    <h2>回调记录</h2>
+    <button id="refresh-callbacks-btn" type="button">刷新回调</button>
+    <div id="callbacks-panel" class="muted">尚未刷新</div>
+  </section>
+  <section class="panel">
+    <h2>错误</h2>
+    <pre id="errors">（无）</pre>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const TERMINAL_STAGES = ["COMPLETED", "FAILED"];
+
+function readToken() {
+  return $("read-token").value.trim() || "mock-read-token";
+}
+
+function showError(context, status, text) {
+  $("errors").textContent = "[" + context + "] HTTP " + status + "\n" + text;
+}
+
+function el(tag, text) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+async function api(path, options) {
+  const opts = options || {};
+  const response = await fetch(path, {
+    method: opts.method || "GET",
+    headers: Object.assign({ "X-Aitest-Read-Token": readToken() }, opts.headers || {}),
+    body: opts.body,
+  });
+  const text = await response.text();
+  let body = text;
+  try { body = JSON.parse(text); } catch (e) { /* 保持原文 */ }
+  if (!response.ok) {
+    showError(opts.label || path, response.status,
+      typeof body === "string" ? body : JSON.stringify(body, null, 2));
+    throw new Error("HTTP " + response.status);
+  }
+  return body;
+}
+
+function renderCases(data) {
+  const panel = $("cases-panel");
+  panel.textContent = "";
+  panel.appendChild(el("div", "batch_id：" + data.batch_id));
+  const table = el("table");
+  const head = el("tr");
+  head.appendChild(el("th", "case_id"));
+  head.appendChild(el("th", "状态"));
+  const thead = el("thead");
+  thead.appendChild(head);
+  table.appendChild(thead);
+  const tbody = el("tbody");
+  for (const item of data.cases || []) {
+    const row = el("tr");
+    row.appendChild(el("td", item.case_id));
+    const cell = el("td");
+    const badge = el("span", item.status);
+    badge.className = "badge " + (item.status === "FAILED" ? "failed" : "passed");
+    cell.appendChild(badge);
+    row.appendChild(cell);
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  panel.appendChild(table);
+}
+
+async function loadCases() {
+  const batchId = $("batch-id").value.trim() || "BATCH-20261120-0089";
+  try {
+    renderCases(await api("/api/v1/aitest/cases?batch_id=" + encodeURIComponent(batchId),
+      { label: "加载用例" }));
+  } catch (e) { /* 错误已展示 */ }
+}
+
+/* ---------------- 会话状态与解析结果详情 ---------------- */
+
+function stageBadge(stage) {
+  const badge = el("span", stage == null ? "-" : String(stage));
+  if (stage === "COMPLETED") badge.className = "badge done";
+  else if (stage === "FAILED") badge.className = "badge failed";
+  else badge.className = "badge running";
+  return badge;
+}
+
+function renderReportDetail(session, status) {
+  const panel = $("session-detail");
+  panel.textContent = "";
+  const card = el("div");
+  card.className = "report-card";
+  const title = el("h3", "解析结果详情：" + (session.session_id || "-"));
+  card.appendChild(title);
+  const appendField = (key, value) => {
+    if (value === null || value === undefined || value === "") return;
+    const row = el("div");
+    row.appendChild(el("div", key));
+    row.lastChild.className = "k";
+    const v = el("div");
+    v.className = "v";
+    v.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    row.appendChild(v);
+    card.appendChild(row);
+  };
+  if (status.report) {
+    appendField("报告编号", status.report.report_id || "-");
+    const result = status.report.result || {};
+    const rc = result.root_cause || {};
+    appendField("根因类别", rc.category || "-");
+    appendField("根因详情", rc.detail || "-");
+    appendField("证据", (rc.evidence && rc.evidence.length) ? rc.evidence : null);
+    appendField("置信度", result.confidence);
+    appendField("修复建议", result.solution || "-");
+    appendField("缺口说明", result.gap_note || "-");
+  } else {
+    card.appendChild(el("div", "（尚未生成报告；当前 stage=" + (status.stage || "-") + "）"));
+  }
+  if (status.citation) {
+    appendField("引用状态", status.citation.citing_status || "-");
+  }
+  panel.appendChild(card);
+}
+
+const sessionCache = new Map();
+
+function pollSession(session, cells) {
+  const sessionId = session.session_id;
+  return api("/api/v1/aitest/aitrace/status/" + encodeURIComponent(sessionId),
+    { label: "会话状态查询" }).then((status) => {
+    sessionCache.set(sessionId, status);
+    cells.stage.textContent = "";
+    cells.stage.appendChild(stageBadge(status.stage));
+    cells.progress.textContent = status.progress == null ? "-" : String(status.progress);
+    cells.reason.textContent = status.waiting_reason || "-";
+    cells.message.textContent = status.message || "-";
+    return status;
+  }).catch((e) => { return null; });
+}
+
+function renderSessions(data) {
+  const panel = $("sessions-panel");
+  panel.textContent = "";
+  $("session-detail").textContent = "";
+  sessionCache.clear();
+  const sessions = data.sessions || [];
+  if (sessions.length === 0) {
+    panel.appendChild(el("div", "（无会话）"));
+    return;
+  }
+  const table = el("table");
+  const head = el("tr");
+  ["case_id", "session_id", "status", "stage", "progress", "waiting_reason", "message", "操作"]
+    .forEach((name) => head.appendChild(el("th", name)));
+  const thead = el("thead");
+  thead.appendChild(head);
+  table.appendChild(thead);
+  const tbody = el("tbody");
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  for (const session of sessions) {
+    const row = el("tr");
+    row.appendChild(el("td", String(session.case_id || "-")));
+    row.appendChild(el("td", String(session.session_id || "-")));
+    row.appendChild(el("td", String(session.status || "-")));
+    const cells = { stage: el("td", "-"), progress: el("td", "-"), reason: el("td", "-"), message: el("td", "-") };
+    row.appendChild(cells.stage);
+    row.appendChild(cells.progress);
+    row.appendChild(cells.reason);
+    row.appendChild(cells.message);
+    const opCell = el("td");
+    const btn = el("button", "解析结果");
+    btn.className = "detail-trigger";
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      const cached = sessionCache.get(session.session_id);
+      if (cached) {
+        renderReportDetail(session, cached);
+      } else {
+        pollSession(session, cells).then((status) => {
+          if (status) renderReportDetail(session, status);
+        });
+      }
+    });
+    opCell.appendChild(btn);
+    row.appendChild(opCell);
+    tbody.appendChild(row);
+    (function pollUntilTerminal() {
+      pollSession(session, cells).then((status) => {
+        if (status && TERMINAL_STAGES.indexOf(status.stage) !== -1) {
+          renderReportDetail(session, status);
+          return;
+        }
+        setTimeout(pollUntilTerminal, 2000);
+      }).catch(() => {
+        setTimeout(pollUntilTerminal, 2000);
+      });
+    })();
+  }
+  const rejected = data.rejected || [];
+  if (rejected.length > 0) {
+    panel.appendChild(el("div", "被拒绝用例："));
+    const pre = el("pre");
+    pre.textContent = JSON.stringify(rejected, null, 2);
+    panel.appendChild(pre);
+  }
+}
+
+async function deliver() {
+  try {
+    const data = await api("/api/v1/aitest/deliver", { method: "POST", label: "推送到知因" });
+    const panel = $("deliver-result");
+    panel.textContent = "";
+    panel.appendChild(el("div", "batch_task_id：" + (data.batch_task_id || "-")));
+    renderSessions(data);
+    refreshStats().catch(() => {});
+  } catch (e) { /* 错误已展示 */ }
+}
+
+/* ---------------- 运营看板 ---------------- */
+
+function card(num, cap) {
+  const c = el("div");
+  c.className = "card";
+  const n = el("div", num === null || num === undefined ? "-" : String(num));
+  n.className = "num";
+  c.appendChild(n);
+  const t = el("div", cap);
+  t.className = "cap";
+  c.appendChild(t);
+  return c;
+}
+
+function distRow(name, count, total) {
+  const row = el("div");
+  row.className = "dist-row";
+  const nm = el("span", name);
+  nm.className = "dist-name";
+  row.appendChild(nm);
+  const bar = el("div");
+  bar.className = "dist-bar";
+  const fill = el("div");
+  fill.className = "dist-fill";
+  fill.style.width = total > 0 ? Math.round((count / total) * 100) + "%" : "0%";
+  bar.appendChild(fill);
+  row.appendChild(bar);
+  const ct = el("span", String(count));
+  ct.className = "dist-count";
+  row.appendChild(ct);
+  return row;
+}
+
+function renderStats(data) {
+  const panel = $("stats-panel");
+  panel.textContent = "";
+  const cards = el("div");
+  cards.className = "cards";
+  const rate = data.ai_completion_rate == null
+    ? "-" : Math.round(data.ai_completion_rate * 100) + "%";
+  const conf = data.avg_confidence == null
+    ? "-" : Number(data.avg_confidence).toFixed(2);
+  cards.appendChild(card(data.delivery_count, "累计投递"));
+  cards.appendChild(card(data.session_count, "分析会话"));
+  cards.appendChild(card(data.completed_count, "已完成"));
+  cards.appendChild(card(rate, "AI 完成率"));
+  cards.appendChild(card(conf, "平均置信度"));
+  panel.appendChild(cards);
+
+  const dist = data.root_cause_distribution || {};
+  const distTotal = Object.values(dist).reduce((a, b) => a + b, 0);
+  if (distTotal > 0) {
+    panel.appendChild(el("div", "根因分布"));
+    panel.appendChild(el("div")).className = "";
+    const distPanel = panel.lastChild;
+    for (const name of Object.keys(dist)) {
+      distPanel.appendChild(distRow(name, dist[name], distTotal));
+    }
+  }
+
+  const ev = data.event_distribution || {};
+  const evNames = Object.keys(ev);
+  if (evNames.length > 0) {
+    const evLine = el("div", "回调事件：" + evNames.map((n) => n + "×" + ev[n]).join("，"));
+    evLine.className = "muted";
+    panel.appendChild(evLine);
+  }
+
+  const recent = data.recent_deliveries || [];
+  if (recent.length > 0) {
+    panel.appendChild(el("div", "最近投递"));
+    const table = el("table");
+    const head = el("tr");
+    ["时间", "batch_id", "触发用户", "失败用例", "会话"].forEach((n) => head.appendChild(el("th", n)));
+    const thead = el("thead");
+    thead.appendChild(head);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const d of recent) {
+      const row = el("tr");
+      row.appendChild(el("td", (d.at || "-").replace("T", " ").slice(0, 19)));
+      row.appendChild(el("td", d.batch_id || "-"));
+      row.appendChild(el("td", d.trigger_user_id || "-"));
+      row.appendChild(el("td", (d.failed_case_ids || []).join("、") || "-"));
+      row.appendChild(el("td", (d.session_ids || []).join("、") || "-"));
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    panel.appendChild(table);
+  }
+
+  const sessions = data.sessions || [];
+  if (sessions.length > 0) {
+    panel.appendChild(el("div", "会话状态一览"));
+    const table = el("table");
+    const head = el("tr");
+    ["session_id", "stage", "confidence", "root_cause_category"].forEach((n) => head.appendChild(el("th", n)));
+    const thead = el("thead");
+    thead.appendChild(head);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const s of sessions) {
+      const row = el("tr");
+      row.appendChild(el("td", s.session_id || "-"));
+      const sc = el("td");
+      sc.appendChild(stageBadge(s.stage));
+      row.appendChild(sc);
+      row.appendChild(el("td", s.confidence == null ? "-" : String(s.confidence)));
+      row.appendChild(el("td", s.root_cause_category || "-"));
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    panel.appendChild(table);
+  }
+}
+
+async function refreshStats() {
+  try {
+    renderStats(await api("/__mock/stats", { label: "运营看板" }));
+  } catch (e) { /* 错误已展示 */ }
+}
+
+async function refreshCallbacks() {
+  try {
+    const data = await api("/__mock/callbacks", { label: "刷新回调" });
+    const panel = $("callbacks-panel");
+    panel.textContent = "";
+    const items = data.items || [];
+    if (items.length === 0) {
+      panel.appendChild(el("div", "（暂无回调）"));
+      return;
+    }
+    for (const item of items) {
+      const pre = el("pre");
+      pre.textContent = JSON.stringify(item, null, 2);
+      panel.appendChild(pre);
+    }
+  } catch (e) { /* 错误已展示 */ }
+}
+
+$("load-cases-btn").addEventListener("click", loadCases);
+$("deliver-btn").addEventListener("click", deliver);
+$("refresh-callbacks-btn").addEventListener("click", refreshCallbacks);
+$("refresh-stats-btn").addEventListener("click", refreshStats);
+$("refresh-sessions-btn").addEventListener("click", () => {
+  const ids = Array.from(sessionCache.keys());
+  if (ids.length === 0) {
+    $("session-detail").textContent = "";
+    $("session-detail").appendChild(el("div", "（请先推送到知因）"));
+    return;
+  }
+  // 逐个重查状态并更新缓存；若无表格引用则仅更新缓存与详情
+  Promise.all(ids.map((id) => api("/api/v1/aitest/aitrace/status/" + encodeURIComponent(id), { label: "刷新会话状态" })
+    .then((s) => { sessionCache.set(id, s); return s; }).catch(() => null)))
+    .then((results) => {
+      const done = results.filter((s) => s && TERMINAL_STAGES.indexOf(s.stage) !== -1);
+      if (done.length > 0) renderReportDetail({ session_id: done[0].session_id }, done[0]);
+      refreshStats().catch(() => {});
+      refreshCallbacks().catch(() => {});
+    });
+});
+loadCases();
+refreshStats();
+</script>
+</body>
+</html>

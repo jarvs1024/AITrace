@@ -1,0 +1,28 @@
+# 截流闸规则表：规则命中直接定界 TEST_ENV_ERROR 出报告回写，不进 AI。
+# pattern 为 Python 正则；sources 限定日志源（test/uart/dmesg/scheduler）。
+rules:
+  - id: lock_conflict
+    category: TEST_ENV_ERROR
+    sources: [scheduler]
+    pattern: "锁板冲突|lock\\s*conflict"
+    detail: "环境问题：锁板冲突——{line}"
+  - id: device_busy
+    category: TEST_ENV_ERROR
+    sources: [scheduler, test]
+    pattern: "盘被占用|device\\s+busy"
+    detail: "环境问题：设备被占用——{line}"
+  - id: agent_lost
+    category: TEST_ENV_ERROR
+    sources: [scheduler]
+    pattern: "Agent\\s*失联|agent\\s*lost"
+    detail: "环境问题：Agent 失联——{line}"
+  - id: task_cancelled
+    category: TEST_ENV_ERROR
+    sources: [scheduler, test]
+    pattern: "任务取消|task\\s*cancel"
+    detail: "环境问题：任务被取消——{line}"
+  - id: pcie_link_down
+    category: TEST_ENV_ERROR
+    sources: [dmesg]
+    pattern: "PCIe Link Down|Link Down"
+    detail: "环境问题：PCIe 链路掉线——{line}"

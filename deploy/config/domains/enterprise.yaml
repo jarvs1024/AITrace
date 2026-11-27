@@ -1,0 +1,28 @@
+domain_id: enterprise
+product_ids: [ssd_8560, ssd_9560, ssd_6100, ssd_3100]
+log_sources:
+  - {name: test, plugin: test_log}
+  - {name: uart, plugin: uart_log}
+  - {name: dmesg, plugin: dmesg_log}
+  - {name: scheduler, plugin: scheduler_log}
+cleaning_rules:
+  heartbeat_fold_seconds: 60
+  perf_sample_downsample_seconds: 60
+anchor_keywords:
+  test: ["Traceback", "ERROR", "FAILED"]
+  uart: ["ASSERT", "PANIC", "WATCHDOG", "RESET", "TIMEOUT"]
+  dmesg: ["Link Down", "AER", "Controller Reset", "Call Trace", "nvme"]
+  scheduler: ["TIMEOUT", "LOST", "TERMINATED"]
+slice_params:
+  first_error_before_s: 60
+  first_error_after_s: 15
+confidence_weights: {}
+analysis_focus: "企业级 SSD：掉盘、数据一致性与固件死锁优先"
+skills_namespace: enterprise_
+memory_namespace: "domain:enterprise:"
+root_cause_enum: [TEST_ENV_ERROR, FW_DEFECT, SCRIPT_ISSUE, HW_DEFECT, OTHER]
+probe_whitelist:
+  - "nvme list"
+  - "nvme id-ctrl"
+  - "lspci -vv"
+  - "smartctl -a"

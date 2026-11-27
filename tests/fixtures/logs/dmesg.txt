@@ -1,0 +1,6 @@
+[    0.000000] Booting Linux on nvme host
+[  120.000000] nvme nvme0: device enumerated sn=SN-9560-001
+[  300.000000] nvme nvme0: AER: uncorrected error received
+[  300.000001] nvme nvme0: Call Trace:
+[  300.000002]  nvme_irq+0x22/0x30
+[  300.100000] pcieport 0000:00:1b.0: PCIe Link Down

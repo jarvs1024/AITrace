@@ -1,0 +1,14 @@
+env: dev
+server:
+  host: 127.0.0.1
+  port: 8080
+  log_level: DEBUG
+database:
+  dsn: postgresql+psycopg://aitrace:aitrace@127.0.0.1:5432/aitrace
+  pool_size: 5
+queue:
+  cleaning_concurrency: 2
+  ai_worker_concurrency: 2
+storage:
+  data_dir: data
+  profile_domains_dir: deploy/config/domains

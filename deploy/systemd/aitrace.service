@@ -1,0 +1,29 @@
+[Unit]
+Description=AITrace failure analysis service
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aitrace
+Group=aitrace
+WorkingDirectory=/opt/aitrace/current
+Environment=AITRACE_DATA_DIR=/var/lib/aitrace
+Environment=HOME=/run/aitrace/home
+Environment=PATH=/opt/aitrace/current/bin:/usr/local/bin:/usr/bin:/bin
+Environment=AITRACE_SERVICE_TOKEN_FILE=%d/service-token
+Environment=AITRACE_DATABASE__DSN=postgresql+psycopg://aitrace@127.0.0.1:5432/aitrace
+Environment=AITRACE_STORAGE__PROFILE_DOMAINS_DIR=/opt/aitrace/current/deploy/config/domains
+RuntimeDirectory=aitrace
+RuntimeDirectoryMode=0700
+LoadCredential=service-token:/etc/aitrace/credentials/service-token
+ExecStart=/opt/aitrace/current/venv/bin/aitrace-server
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=120s
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

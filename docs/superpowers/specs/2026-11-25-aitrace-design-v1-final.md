@@ -237,7 +237,7 @@ Skills 目录保持扁平，**文件名自带领域 id 前缀**，不按产品�
 #### 4.1.5 截流闸与路由预算闸
 
 - **截流闸（规则短路）**：锁板冲突 / 盘被占用 / Agent 失联 / 任务取消 / PCIe Link Down 等环境类可判失败，直接定界 `TEST_ENV_ERROR` 出报告回写，不进 AI；规则命中依据随报告附上，规则表可配置；
-- **路由预算闸（token 上限）**：每批独立 AI 全量分析次数设上限（默认 3 次），超出后其余失败不再进入独立全量分析；同指纹组覆盖 ≥5 例或占批内失败过半时升级为**批级共因**——主 Agent 做一次批次级分析（环境拓扑 + 全批失败分布）出共因结论，各 case 引用；批级共因单列一次，不计入单 case 全量分析预算；
+- **路由预算闸（token 上限）**：每批独立 AI 全量分析次数设上限（默认 3 次），超出后其余失败不再进入独立全量分析；同指纹组覆盖 ≥5 例或占批内失败超过半数（组内失败数 > ⌈批内失败总数/2⌉：偶数批即严格过半，奇数批恰好过半如 2/3、3/5 不升级）时升级为**批级共因**——主 Agent 做一次批次级分析（环境拓扑 + 全批失败分布）出共因结论，各 case 引用；批级共因单列一次，不计入单 case 全量分析预算；
 - **预算与引用门槛的先后关系**：每批先扣预算、再判断引用。预算未耗尽时，同指纹后续 case 按 §4.1.6 引用门槛决定「引用 / 独立分析」；预算耗尽后不再允许独立分析——满足门槛则引用，不满足则走规则分类 + `OTHER` 转人工，并在报告标注「批内 AI 预算已耗尽」。避免低置信首例触发逐例独立分析、击穿预算；
 - **边界情形**：① 首例仍在分析中时，同指纹后续 case 标记「引用待定」挂起（`WAITING`，不占用该用户 AI 串行槽位），首例出结论后回填；② 首例 `FAILED` 不消耗全量分析预算，同组下一例晋升首例；③ 路由预算耗尽后，未命中截流规则的新指纹组走规则分类 + `OTHER` 转人工复核；④ 「差异最大」度量 = 用例入参差异 + 设备级标识差异（同机异盘 / 异机），在剩余预算内取差异最大的 1~2 例补分析（§4.1.6）；
 
@@ -640,7 +640,7 @@ SELECT * FROM task_queue
 | `round` 轮次 | round_id(PK), session_id(FK), round_no, trigger_user_id, queue_key, exact_fingerprint, stage, round_status, report_id, confidence, feedback(JSONB), started_at, finished_at | 会话内 `round_no` 单调递增；`UNIQUE(session_id, round_no)`；`trigger_user_id` 为该轮发起人（重诊为操作人），决定令牌队列归属；精确指纹落轮次（批内有效），不落会话 |
 | `report` 报告 | report_id(PK), round_id(FK, UNIQUE), fault_info(JSONB), result(JSONB), confidence_breakdown(JSONB[]), evidence(JSONB[]), referenced_logs(JSONB[]), process_steps(JSONB[]), citation(JSONB), gap_note, created_at | citation 含 `source_session / source_round_no / source_report_id / cited_version / citing_status / cascaded_from`；`citing_status` 枚举 `NONE / CITING_PENDING / CITING / CITING_STALE`；`cascaded_from` 记录级联改写前的直接来源 |
 | `batch` 批次上下文 | batch_id(PK), product_id, trigger_user_id, batch_task_id, failed_cases(JSONB), passed_cases(JSONB), batch_state(RUNNING/COMPLETED/FAILED), updated_at | 兜底投递 / 对账即使全部会话已存在，也更新批次上下文并触发批级共因；`batch_task_id` 幂等；`batch_state` 仅由分析任务（`case_clean / case_ai / batch_common`）收口，不含通知 / 回调 / 热记忆任务 |
-| `task_queue` 任务队列 | task_id(PK), batch_id, session_id, round_id, round_no, product_id, case_id, task_type, queue_key, queue_state(PENDING/CLEANING/WAITING/READY/AI_RUNNING/DONE/FAILED), dispatch_phase(JIT_FETCH/AI_EXEC, nullable), priority, depends_on_task_id, not_before, attempts, max_attempts, lease_owner, lease_generation, lease_until, next_retry_at, callback_status(PENDING/SENT/FAILED), payload(JSONB), error(JSONB), created_at, updated_at | `error` 只存错误码与脱敏摘要，禁止写入令牌本体或原始鉴权头；状态映射见 §4.5.1；`dispatch_phase` 仅 `AI_RUNNING` 时有值；索引 `(queue_key, queue_state, priority, created_at)` 与 `(queue_state, lease_until, priority)`；`UNIQUE(session_id, round_no, task_type)`（批级任务用 `batch_id + task_type` 的部分唯一索引）；`lease_until` 新建为 `epoch` |
+| `task_queue` 任务队列 | task_id(PK), batch_id, session_id, round_id, round_no, product_id, case_id, task_type, queue_key, queue_state(PENDING/CLEANING/WAITING/READY/AI_RUNNING/DONE/FAILED), dispatch_phase(JIT_FETCH/AI_EXEC, nullable), priority, depends_on_task_id, not_before, attempts, max_attempts, lease_owner, lease_generation, lease_until, next_retry_at, callback_status(PENDING/SENT/FAILED), payload(JSONB), error(JSONB), created_at, updated_at | `error` 只存错误码与脱敏摘要，禁止写入令牌本体或原始鉴权头；状态映射见 §4.5.1；`dispatch_phase` 仅 `AI_RUNNING` 时有值；索引 `(queue_key, queue_state, priority, created_at)` 与 `(queue_state, lease_until, priority)`；`UNIQUE(session_id, round_no, task_type)`（批级任务用 `batch_id + task_type` 的部分唯一索引；两索引均排除 CALLBACK 行——回调通道同一用例轮次需并存多条 PROGRESS/RESULT 事件、批级行需并存连续 QUEUE_STATE 事件，§6.5.2）；`lease_until` 新建为 `epoch` |
 | `user_queue` 令牌队列 | queue_key(PK, =trigger_user_id), state(ACTIVE/PAUSED_AUTH), in_flight, paused_until, last_error, last_dispatch_at, updated_at | 槽位闸行级条件更新（§4.5.2）；不存令牌或令牌哈希，`last_error` 只存错误码 / 脱敏摘要；首次派发前 upsert，默认 `ACTIVE / in_flight=0 / paused_until=epoch`（保证条件更新可用） |
 | `case_library` 案例库 | (domain_id, stable_fingerprint)(PK), category, ai_conclusion, correction, evidence_summary, exact_fingerprints(JSONB[]), confirm_count, use_hits, observation_hits, entry_status(valid/lesson/observing/demoted), version, updated_at | 复合主键 `(domain_id, stable_fingerprint)`，即稳定指纹为唯一业务键；`category / ai_conclusion / correction / evidence_summary` 是 active `case_contribution` 的投影；`confirm_count` = active 贡献数，`use_hits` = 预筛注入 / 引用使用次数，`observation_hits` = 最新 active lesson 贡献的观察命中数；exact_fingerprints 为历史路径行号快照列表；`demoted` 仅在该指纹无其他 active 贡献时置位并移出热文件 |
 | `case_contribution` 知识贡献 | (domain_id, stable_fingerprint, session_id, round_no, feedback_version)(PK), kind(valid/lesson), status(active/withdrawn), report_id, category, ai_conclusion, correction, evidence_summary, observation_hits, created_at, updated_at | 每次反馈一条**自包含**贡献；版本变更只撤回本轮，其他用例贡献不受影响；案例条目展示字段与 `confirm_count` 由 active 贡献重算；`observation_hits` 按教训贡献独立计数，新教训从 0 开始；`use_hits` 独立累计，不从贡献派生（§4.4.5 / §6.5.3） |
@@ -1395,6 +1395,15 @@ AITrace/
 **V1.1 增补（2026-11-25）**：新增 §10.3 工程目录结构与职责边界（六类资产、依赖方向、aitest mock 独立目录、配置与数据落盘、测试分层），并补充 M0 目录骨架交付物；本次增补不改变任何接口、数据模型与调度语义。
 
 **V1.2 增补（2026-11-25）**：部署形态改为 Linux systemd 进程部署（无容器），新增 §8.4 进程模型与启动自检 / 优雅退出、§8.5 发布与回滚、§8.6 备份 timer，并同步 §10.3 的目录树、e2e 编排与 M0 部署骨架；新增附录 E Qoder CLI SDK 参考文档。接口、数据模型与调度语义不变。
+
+**V1.2 实施修订（2026-11-26，M0 实施期实测回填）**：不改任何接口与调度语义，仅回填实测结论与工程裁定：
+
+1. **国内版 SDK 实测确认**：`qodercn_agent_sdk` 1.0.17 可用——`QoderAgentOptions()` + `opts.auth = sdk.access_token(token)`（仅内存）+ `opts.model = "glm-5.3-flash"`（透传）+ `opts.permission_mode = "dontAsk"` + `async for msg in sdk.query(...)`；SDK 期望 daemon 协议 v2（自带 CLI 1.1.79），CLI 名称为 `qoderclicn`/`qodercn`，环境变量 `QODERCN_PERSONAL_ACCESS_TOKEN`，配置目录 `.qoder-cn`（区别于国际版 `qodercli` + `QODER_PERSONAL_ACCESS_TOKEN`）。release 清单锁定 CLI 时须锁**国内版** `qoderclicn` 而非国际版。
+2. **测试模型裁定**：用户指令固定 AI 链路测试模型为 `glm-5.3-flash`；M1/M2 单测与契约测试一律使用 Fake-Qoder runtime（不发真实请求），真实模型验证为独立门禁，需有效令牌。
+3. **令牌实测门禁**：实施期提供的 CN 令牌经 `openapi.qoder.com.cn` 实测返回 401 `TOKEN_EXPIRE`（2026-11-26）。真实 AI e2e 以有效令牌为前提；令牌失效路径（`TOKEN_EXPIRED` → 可恢复 → 队列 `PAUSED_AUTH`）已用该真实拒绝响应验证分类语义，Fake-Qoder 覆盖其余令牌异常（404/403/429/5xx/超时）。
+4. **aitest mock 增补前端**：mock 除投递 / JIT 令牌 / 回调接口外，增加极简 HTML 页面（投递按钮、会话轮询、回调面板）与投递转发 / 状态代理端点，供全链路演示；mock 与知因零依赖（架构测试强制）。
+5. **审计链 JSONB 稳定性**：`audit_log.detail` 为 JSONB，浮点数会触发 `1.0→1` 归一化破坏哈希链，`AuditService.append` 拒绝浮点（中文报错），契约测试锁定。
+6. **本地开发环境**：PostgreSQL 16.16（Homebrew）、`aitrace`/`aitrace_test` 双库、`TEST_DATABASE_URL=postgresql+psycopg://aitrace:aitrace@127.0.0.1:5432/aitrace_test`；无 Docker，e2e 以本地 PG + uvicorn 子进程组织。
 
 ---
 

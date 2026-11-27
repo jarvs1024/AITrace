@@ -1,0 +1,33 @@
+batch_id: BATCH-20261120-0089
+product_id: ssd_9560
+trigger_user_id: zhangsan
+hardware_type: SSD
+env_topology:
+  host_ip: 10.23.45.67
+  host_boot_time_utc: 1763000000
+  devices:
+    - device_id: nvme-ssd-001
+      pcie_bdf: "0000:01:00.0"
+      device_node: /dev/nvme0n1
+      model: SSD-9560
+      sn: SN20261120001
+      fw_version: "2.3.1"
+      slot: slot-0
+git_context:
+  repo_url: https://git.example.com/ssd/aitest-cases.git
+  commit_id: abc123def4567890123456789012345678901234
+cases:
+  - case_id: CASE-1021
+    status: FAILED
+    script_path: cases/endurance/random_write_72h.py
+    failed_at_utc: 1763100000
+    env_binding:
+      device_id: nvme-ssd-001
+    logs:
+      test_log_path: var/log/aitest/CASE-1021/test.log
+      uart_log_path: var/log/aitest/CASE-1021/uart.log
+      kernel_log_path: var/log/aitest/CASE-1021/dmesg.log
+      scheduler_log_path: var/log/aitest/CASE-1021/scheduler.log
+  - case_id: CASE-0987
+    status: PASSED
+    script_path: cases/basic/seq_read.py

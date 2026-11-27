@@ -1,0 +1,23 @@
+env: prod
+server:
+  host: 127.0.0.1
+  port: 8080
+  log_level: INFO
+database:
+  dsn: postgresql+psycopg://aitrace:CHANGE_ME@127.0.0.1:5432/aitrace
+  pool_size: 20
+queue:
+  cleaning_concurrency: 4
+  ai_worker_concurrency: 4
+  lease_seconds: 600
+  ai_hard_timeout_seconds: 1800
+storage:
+  data_dir: /var/lib/aitrace
+  max_attachment_bytes: 52428800
+  profile_domains_dir: /opt/aitrace/current/deploy/config/domains
+ai:
+  edition: cn
+  model: GLM-5.3-Flash
+  # 国内实例的 VPC 专线网关（<实例名>.vpc.qoder.com.cn）；模型名需与 VPC 部署精确大小写一致
+  vpc_endpoint: twsc.vpc.qoder.com.cn
+  sdk_control_timeout_ms: 180000

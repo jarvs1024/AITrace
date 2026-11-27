@@ -1,0 +1,10 @@
+/var/lib/aitrace/logs/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su aitrace aitrace
+}

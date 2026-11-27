@@ -1,0 +1,15 @@
+domain_id: cxl
+product_ids: [cxl_1, cxl_2]
+log_sources:
+  - {name: test, plugin: test_log}
+  - {name: dmesg, plugin: dmesg_log}
+  - {name: scheduler, plugin: scheduler_log}
+anchor_keywords:
+  test: ["Traceback", "ERROR", "FAILED"]
+  dmesg: ["CXL", "protocol", "Link Down", "AER"]
+  scheduler: ["TIMEOUT", "LOST"]
+analysis_focus: "CXL 协议一致性与链路异常优先"
+skills_namespace: cxl_
+memory_namespace: "domain:cxl:"
+root_cause_enum: [TEST_ENV_ERROR, FW_DEFECT, SCRIPT_ISSUE, HW_DEFECT, OTHER]
+probe_whitelist: ["cxl list", "lspci -vv", "dmesg --read"]

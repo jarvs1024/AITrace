@@ -12,6 +12,10 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 |---|---|
 | [docs/superpowers/specs/2026-11-25-aitrace-design-v1-final.md](docs/superpowers/specs/2026-11-25-aitrace-design-v1-final.md) | **V1.2 定稿（唯一有效方案）**：系统定位 · 双向接口契约 · 三阶段管线 · 并行调度 · 数据模型 · 安全与 SLO · Linux 进程部署 · 工程目录结构 · 评审记录 · Qoder CLI SDK 参考 |
 | [docs/superpowers/specs/2026-11-22-aitrace-design-v1.md](docs/superpowers/specs/2026-11-22-aitrace-design-v1.md) | 历史存档（已被 2026-11-25 终稿取代，仅作追溯） |
+| [docs/superpowers/plans/2026-11-25-aitrace-v1-program.md](docs/superpowers/plans/2026-11-25-aitrace-v1-program.md) | V1 总体实施计划（M0–M5 边界、接口、验证矩阵） |
+| [docs/superpowers/plans/2026-11-25-aitrace-m0-foundation.md](docs/superpowers/plans/2026-11-25-aitrace-m0-foundation.md) | M0 契约冻结与骨架详细 TDD 计划 |
+| [docs/superpowers/plans/2026-11-26-aitrace-m1-cleaning.md](docs/superpowers/plans/2026-11-26-aitrace-m1-cleaning.md) | M1 清洗流水线详细 TDD 计划（含执行记录） |
+| [docs/superpowers/plans/2026-11-26-aitrace-m2-ai.md](docs/superpowers/plans/2026-11-26-aitrace-m2-ai.md) | M2 AI 分析链详细 TDD 计划（含执行记录与全部裁决） |
 
 ## 架构图
 
@@ -48,4 +52,4 @@ AITrace 与现有自动化测试平台 **aitest** 形成协同矩阵：aitest �
 
 ## 仓库状态
 
-当前处于**设计阶段**，仓库仅承载架构方案与配套图件；服务实现尚未开始。实现期目录按终稿 §10.3 组织：`src/aitrace`（生产代码）· `contracts`（双向契约）· `mocks/aitest`（独立 aitest mock）· `deploy`（部署与配置）· `data`（运行数据）· `tests`（分层测试）。生产环境为 **Linux + systemd 进程部署（无容器）**：单主进程、本机 PostgreSQL、TLS 反向代理、随 release 锁定的 Qoder CLI runtime，发布与回滚按 §8.5 执行。
+**M0 基础骨架 + M1 清洗流水线 + M2 AI 分析链已实现并验证**（2026-11-27）：M0 契约冻结、数据模型与审计链、队列/租约/令牌槽门、投递与查询 API、aitest mock（含控制台前端）；M1 四源脱水插件、首错定位、跨源对齐与锚点级联、三段切片、双层指纹、L1 证据落盘、截流五规则、清洗 Worker、聚合闸；M2 每令牌串行队列与 JIT 令牌（一令牌=一账号=一条队列、无兜底、仅内存持有）、Qoder 主/子代理编排（国内 SDK qodercn_agent_sdk，VPC 网关 `vpc_endpoint` + 精确大小写模型名 `GLM-5.3-Flash` 装配）、七维置信度评分、截流/暂停/恢复/放弃生命周期、PROGRESS/RESULT/QUEUE_STATE 回调通道（含 JSON Schema 契约）、批次关账、后台调度循环（daemon 线程七段 tick）、迁移 0003-0005。验证结果（2026-11-27 fresh）：`make verify` 全绿（`make lint` 清洁 · `make test` 243 passed · `make contract` 20 passed · `make e2e` 4 passed）；端到端系统级验证（真实 HTTP mock↔AITrace）：**cn 真实模型正向全链 COMPLETED**（真实 CN PAT + twsc VPC 专线 + GLM-5.3-Flash + 双子代理 → 批次 COMPLETED、RESULT 回调、状态 API 完整报告，OTHER 硬顶置信度 0.5 生效），Fake 版正向全链 COMPLETED + RESULT 回调 + 状态 API 完整报告，真实 SDK 负向全链 FAILED 正确传播（stage=FAILED「一键重新触发」）；aitest mock 控制台（用例清单/推送/会话轮询/解析结果详情/运营看板/回调记录）Playwright 浏览器实测全通。修复轮收敛 3 个状态语义缺陷 + CN 网关三要素 + 看板乱序聚合（详见 M2 计划文末「端到端验证记录」）。M3–M5（反馈闭环、SLO 运维、加固）按总体计划继续实施。实现期目录按终稿 §10.3 组织：`src/aitrace`（生产代码）· `contracts`（双向契约）· `mocks/aitest`（独立 aitest mock）· `deploy`（部署与配置）· `data`（运行数据）· `tests`（分层测试）。生产环境为 **Linux + systemd 进程部署（无容器）**：单主进程、本机 PostgreSQL、TLS 反向代理、随 release 锁定的 Qoder CLI runtime，发布与回滚按 §8.5 执行。

@@ -1,0 +1,21 @@
+domain_id: default
+product_ids: []
+log_sources:
+  - {name: test, plugin: test_log}
+  - {name: uart, plugin: uart_log}
+  - {name: dmesg, plugin: dmesg_log}
+  - {name: scheduler, plugin: scheduler_log}
+cleaning_rules: {}
+anchor_keywords:
+  test: ["Traceback", "ERROR", "FAILED"]
+  uart: ["ASSERT", "PANIC", "WATCHDOG", "RESET"]
+  dmesg: ["Link Down", "AER", "Controller Reset", "Call Trace"]
+  scheduler: ["TIMEOUT", "LOST", "TERMINATED"]
+slice_params: {}
+confidence_weights: {}
+analysis_focus: "通用失败定界：证据完整性与时间线一致性优先"
+prompt_template: ""
+skills_namespace: default_
+memory_namespace: "domain:default:"
+root_cause_enum: [TEST_ENV_ERROR, FW_DEFECT, SCRIPT_ISSUE, HW_DEFECT, OTHER]
+probe_whitelist: []

@@ -1,0 +1,7 @@
+{
+  "events": [
+    {"kind": "delta", "text": "正在解析四路日志证据…"},
+    {"kind": "subagent", "text": "PROBE_OK 探查成功：uart 侧寄存器与权威信息一致", "data": {}},
+    {"kind": "result", "text": "{\"root_cause_category\": \"FW_DEFECT\", \"root_cause_detail\": \"固件缺陷：电源跌落命令超时路径缺少重试保护\", \"evidence\": [], \"solution\": \"升级固件至 2.4.2 并重跑用例\", \"gap_note\": null}"}
+  ]
+}

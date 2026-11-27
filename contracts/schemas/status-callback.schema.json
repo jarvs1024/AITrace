@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AITrace 状态回调（§6.5.2 契约）",
+  "type": "object",
+  "required": ["event", "session_id", "batch_id", "case_id", "round_no", "seq", "batch_seq", "stage", "progress", "waiting_reason", "message", "report", "citation", "queue_event", "sessions"],
+  "properties": {
+    "event": {"enum": ["PROGRESS", "RESULT", "QUEUE_STATE"]},
+    "session_id": {"type": ["string", "null"], "maxLength": 40},
+    "batch_id": {"type": "string", "maxLength": 64},
+    "case_id": {"type": "string", "maxLength": 64},
+    "round_no": {"type": "integer", "minimum": 0},
+    "seq": {"type": "integer", "minimum": 0},
+    "batch_seq": {"type": "integer", "minimum": 0},
+    "stage": {"type": ["string", "null"]},
+    "progress": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+    "waiting_reason": {"type": ["string", "null"]},
+    "message": {"type": ["string", "null"]},
+    "report": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["root_cause"],
+          "properties": {
+            "root_cause": {
+              "type": "object",
+              "required": ["category", "detail", "evidence"],
+              "properties": {
+                "category": {"type": "string"},
+                "detail": {"type": "string"},
+                "evidence": {"type": "array"}
+              }
+            },
+            "solution": {},
+            "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "gap_note": {"type": ["string", "null"]}
+          }
+        }
+      ]
+    },
+    "citation": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["citing_status"],
+          "properties": {"citing_status": {"enum": ["NONE", "CITING", "CITING_STALE"]}}
+        }
+      ]
+    },
+    "queue_event": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["type", "reason"],
+          "properties": {
+            "type": {"enum": ["PAUSED_AUTH", "RESUMED", "ABANDONED"]},
+            "reason": {"type": "string"},
+            "affected_tasks": {"type": "array"},
+            "count": {"type": "integer"},
+            "paused_until": {"type": ["string", "null"]}
+          }
+        }
+      ]
+    },
+    "sessions": {}
+  },
+  "additionalProperties": false
+}

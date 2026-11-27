@@ -1,0 +1,7 @@
+version: 1
+default: default
+domains:
+  default: default.yaml
+  enterprise: enterprise.yaml
+  consumer: consumer.yaml
+  cxl: cxl.yaml

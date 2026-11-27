@@ -1,0 +1,8 @@
+[32m2026-11-20T10:00:00.000Z INFO env ready device=nvme0n1 sn=SN-9560-001 slot=3 fw=FW-2.4.1
+2026-11-20T10:00:01.000Z INFO begin case power_down_resume
+2026-11-20T10:00:02.000Z CMD nvme power-down @CMD uart_tick=12345
+2026-11-20T10:00:03.000Z PASS phase1 link ok
+2026-11-20T10:53:43.500Z ERROR Traceback (most recent call last):
+2026-11-20T10:53:43.501Z ERROR AssertionError: power down waiting gpf phase2 rsp, err_code=0x10B
+2026-11-20T10:53:44.000Z FAILED exit code 42
+2026-11-20T10:53:45.000Z INFO teardown done
