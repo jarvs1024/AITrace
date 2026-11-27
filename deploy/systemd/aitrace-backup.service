@@ -1,0 +1,16 @@
+# deploy/systemd/aitrace-backup.service
+[Unit]
+Description=AITrace 数据库备份（pg_dump + SHA-256 校验 + 异盘推送）
+After=network.target postgresql.service
+RequiresMountsFor=/var/lib/aitrace
+
+[Service]
+Type=oneshot
+User=aitrace
+Group=aitrace
+EnvironmentFile=/etc/aitrace/aitrace.env
+ExecStart=/opt/aitrace/current/venv/bin/aitrace-backup backup
+ReadWritePaths=/var/lib/aitrace /var/log/aitrace
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes

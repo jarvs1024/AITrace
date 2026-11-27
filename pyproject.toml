@@ -33,6 +33,7 @@ dev = [
 
 [project.scripts]
 aitrace-server = "aitrace.main:run"
+aitrace-backup = "aitrace.ops.backup:console_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aitrace"]

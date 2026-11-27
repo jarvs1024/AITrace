@@ -1,0 +1,11 @@
+# deploy/systemd/aitrace-backup.timer
+[Unit]
+Description=AITrace 每日备份定时器（凌晨 03:00，错过则补跑）
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=aitrace-backup.service
+
+[Install]
+WantedBy=timers.target

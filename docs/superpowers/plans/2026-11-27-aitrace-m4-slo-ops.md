@@ -728,6 +728,21 @@ git push
 | T2 水位+背压 | commit（见本轮提交）；tests/unit/test_watermark.py 8 用例 + tests/integration/test_backpressure.py 4 用例全绿；`make verify`：368 passed + 26 contract + 4 e2e，coverage 94.98%；实测 429 QUEUE_FULL（全局深度 5、单令牌深度 1，retry_after=60）、507 DISK_FULL（quota 1000B/占用 900B）；WARN 档（70%）触发仅清 TTL、FORCE 档按 未评价→无效→有效 顺序淘汰且不碰 RUNNING 批次 |
 | T3 监控快照 | commit（见本轮提交）；新增 tests/unit/test_monitor.py 8 用例 + tests/integration/test_monitor_api.py 4 用例全绿；`make verify`：lint 全过、380 passed + 26 contract + 4 e2e，coverage 94.81%；`GET /api/v1/aitrace/monitor` 401/403 守卫生效、200 返回 9 键快照（default 库全零）；dashboard summary 增 monitoring 段；契约 diff 为纯新增（76 行增 0 删）；快照仅含计数/耗时/比例，无令牌等敏感值（测试逐键断言） |
 | T4 告警触达 | commit（见本轮提交）；tests/unit/test_alerts.py 20 用例 + tests/unit/test_audit_blocked.py 5 用例全绿；`make verify`：lint 全过、405 passed + 26 contract + 4 e2e，coverage 94.89%；告警判定覆盖全局/单令牌深度、PAUSED_AUTH 持续、令牌失败率、回调失败率/积压、热记忆物化失败、WAITING 超时、worker util 低/高、水位 WARN/FORCE、审计链断裂、fencing 持续；append 熔断抛 AUDIT_CHAIN_BROKEN（503）且不落库；verify_chain 60s 缓存经断链行验证缓存命中与过期后检出 |
+| T5 readyz+自检 | commit 2c806db；tests/unit/test_startup.py 8 用例 + test_readyz.py 4 用例 + test_main.py 2 用例（含失败退出 SystemExit(1)）全绿；`make verify`：lint 全过、418 passed + 26 contract + 4 e2e，coverage 94.61%；契约文件刷新 +12 行（/readyz 纯新增）；dev 实启验证：`GET /api/v1/readyz` 200 ready（version 0.1.0）、rawlogs/memory/logs 子目录自动创建（evidence/runtime 已存在不动）；SIGTERM 后日志呈现 Shutting down → Waiting for application shutdown → Application shutdown complete 干净排水；凭据扫描命中只回显文件名（测试断言消息不含 ASCII「token」）、HOME 命中仅警告不阻断 |
+| T6 备份/恢复 | commit（见本轮提交）；tests/unit/test_backup.py 12 用例全绿（DSN 拆分密码只入 env、空间不足 SpaceShortageError 且零 dump、保留策略同删 digest、dump+digest+list 校验、推送失败保留 dump 并告警、非空目标拒绝/--force 放行、console 退出码 0/1/3）；tests/ops/test_backup_drill.py 2 用例真实 pg_dump/pg_restore 通过（AITRACE_OPS_DRILL=1 门禁）；CLI 演练：`aitrace-backup backup --staging /tmp/aitrace-backup-drill --keep 2` 产出 31119 字节 dump + SHA-256 digest，`restore --force` 恢复到测试库后 `make test-integration` 98 passed；`make verify` 全绿 |
+
+裁决记录（T6）：
+- 恢复演练测试加显式 opt-in 门禁 `AITRACE_OPS_DRILL=1`（计划仅列 TEST_DATABASE_URL 与 pg 工具门禁）：tests/ops 在默认测试收集范围内，pg_restore --clean 会与同进程集成测试的 db_engine 连接冲突，必须由 make ops 显式开启。
+- 清单校验失败时保留 dump 供人工核查；pg_dump 本身失败则删除半成品。
+- 非空判据取 task_queue 行数；计数查询失败按「未知」处理且必须 --force 才放行（宁拒绝勿破坏）。
+- remote_dest 含 "://" 或 rsync 前缀走 rsync，否则视为本地路径走 copy2；推送失败告警但本地备份保留。
+- 连接串传给 pg_dump/pg_restore 一律经 `_pg_env_parts` 剥离密码进 PGPASSWORD 环境变量，argv 与日志不含密码（测试断言逐字验证）。
+
+裁决记录（T5）：
+- 排水顺序改为 stopping=True 先行、资源释放后置 ready=False（计划字面顺序 `ready=False; stopping=True` 会让排水期探针误报 starting；测试契约要求 stopping 时返回 reason=stopping）。
+- readyz 增加 lifespan 前 503「starting」态（计划仅列 stopping/db_unavailable，但测试三段语义要求启动前拒绝）；判定顺序 stopping → starting → 数据库连通。
+- create_app 的 startup_checks 采用单个 `Callable[[], None] | None` 而非计划中的 list（唯一消费方是测试注入；main.py 直接调 run_startup_checks，无多回调需求）。
+- 数据根目录缺失时拒绝启动而非自动创建（自检只自动创建五个子目录）；凭据扫描 HOME 仅查顶层文件名（防 ~/.ssh 递归误报），HOME 命中仅 logger.warning 不阻断。
 
 裁决记录（T4）：
 - fencing「持续」跨巡检周期无快照内状态可依，采用 `prev_state` + `next_alert_state` 双函数：evaluate 保持纯函数签名（计划测试形参不动），线程持状态推进；增长停一周期即重置起点。
