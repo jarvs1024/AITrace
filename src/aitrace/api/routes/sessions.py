@@ -13,16 +13,11 @@ from aitrace.scheduling.stage_view import build_stage_view
 
 router = APIRouter(tags=["sessions"])
 
+_FEEDBACKABLE_ROUND_STATUSES = ("AWAITING_FEEDBACK", "VALID", "INVALID")
 
-@router.get(
-    "/aitrace/tasks/{session_id}",
-    response_model=SessionStatusResponse,
-    dependencies=[Depends(require_service_token)],
-)
-def get_session_status(
-    session_id: str,
-    session: Annotated[Session, Depends(get_session)],
-    clock: Annotated[SystemClock, Depends(get_clock)],
+
+def _load_session_status(
+    session: Session, clock: SystemClock, session_id: str
 ) -> SessionStatusResponse:
     record = session.get(SessionModel, session_id)
     if record is None:
@@ -58,6 +53,21 @@ def get_session_status(
     report = session.execute(
         select(Report).where(Report.round_id == round_row.round_id)
     ).scalar_one_or_none()
+    rounds = [
+        {
+            "round_no": r.round_no,
+            "stage": r.stage,
+            "round_status": r.round_status,
+            "confidence": r.confidence,
+            "report_id": r.report_id,
+            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+        }
+        for r in session.execute(
+            select(Round).where(Round.session_id == session_id).order_by(Round.round_no.asc())
+        ).scalars()
+    ]
+    grant_feedback = report is not None and (round_row.round_status in _FEEDBACKABLE_ROUND_STATUSES)
     return SessionStatusResponse(
         session_id=record.session_id,
         batch_id=record.batch_id,
@@ -73,4 +83,34 @@ def get_session_status(
         message=view.message,
         report=None if report is None else {"report_id": report.report_id, "result": report.result},
         citation=None if report is None else report.citation,
+        rounds=rounds,
+        referenced_logs=report.referenced_logs if report is not None else [],
+        process_steps=report.process_steps if report is not None else [],
+        grant_feedback=grant_feedback,
     )
+
+
+@router.get(
+    "/aitrace/tasks/{session_id}",
+    response_model=SessionStatusResponse,
+    dependencies=[Depends(require_service_token)],
+)
+def get_session_status(
+    session_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    clock: Annotated[SystemClock, Depends(get_clock)],
+) -> SessionStatusResponse:
+    return _load_session_status(session, clock, session_id)
+
+
+@router.get(
+    "/aitrace/sessions/{session_id}",
+    response_model=SessionStatusResponse,
+    dependencies=[Depends(require_service_token)],
+)
+def get_session_detail(
+    session_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    clock: Annotated[SystemClock, Depends(get_clock)],
+) -> SessionStatusResponse:
+    return _load_session_status(session, clock, session_id)

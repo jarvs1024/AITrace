@@ -119,6 +119,29 @@ class SessionStatusResponse(_StrictModel):
     message: str
     report: dict[str, Any] | None = None
     citation: dict[str, Any] | None = None
+    rounds: list[dict[str, Any]] = Field(default_factory=list)
+    referenced_logs: list[Any] = Field(default_factory=list)
+    process_steps: list[Any] = Field(default_factory=list)
+    grant_feedback: bool = False
+
+
+class RediagnoseRequest(_StrictModel):
+    trigger_user_id: str = Field(min_length=1)
+    hint: str | None = Field(default=None, max_length=2000)
+
+
+class RediagnoseResponse(_StrictModel):
+    session_id: str
+    round_no: int
+    round_id: str
+    task_id: str
+
+
+class AttachmentUploadResponse(_StrictModel):
+    attachment_id: str
+    path: str
+    size_bytes: int
+    sha256: str
 
 
 _ROOT_CAUSE_CATEGORIES = Literal[

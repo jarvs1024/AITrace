@@ -32,6 +32,8 @@ _FIELD_LABELS = {
     "correction": "修正信息",
     "root_cause_category": "根因分类",
     "reason": "修正说明",
+    "hint": "诊断线索",
+    "uploaded_by": "上传人",
 }
 
 _TOKEN_FIELD = re.compile(

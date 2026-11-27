@@ -24,6 +24,7 @@ from aitrace.ai.prompts import (
     L1Artifacts,
     build_master_prompt,
     build_subagent_configs,
+    hints_from_task_payload,
     load_l1_artifacts,
 )
 from aitrace.ai.qoder import QoderEvent, TokenExpiredError
@@ -381,6 +382,7 @@ class AIWorker:
             summary=artifacts.summary,
             slices=artifacts.slices,
             profile=profile,
+            hints=hints_from_task_payload(task.payload or {}),
             batch_context=batch_context,
             memory_hits=memory_hits,
         )

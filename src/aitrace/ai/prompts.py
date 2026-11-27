@@ -69,6 +69,18 @@ class AnalysisContext:
     batch_context: dict[str, Any] | None = None
 
 
+def hints_from_task_payload(payload: dict[str, Any]) -> tuple[str, ...]:
+    """重诊线索与附件路径进入 <user_hint>：仅作排查方向，不构成硬证据。"""
+    hints: list[str] = []
+    hint = payload.get("hint")
+    if hint:
+        hints.append(f"工程师重诊提示：{hint}（仅作排查方向，不构成证据）")
+    paths = [str(p) for p in payload.get("attach_paths") or []]
+    if paths:
+        hints.append("本轮上传的附件路径（可用 Read 工具查阅）：" + "、".join(paths))
+    return tuple(hints)
+
+
 def _memory_line(m: dict[str, Any]) -> str:
     text = m.get("correction") or m.get("ai_conclusion") or ""
     suffix = "（观察期：仅作排查方向，不计入置信度）" if m.get("observing") else ""

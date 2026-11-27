@@ -74,6 +74,102 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aitrace/sessions/{session_id}:
+    get:
+      tags:
+      - sessions
+      summary: Get Session Detail
+      operationId: get_session_detail_api_v1_aitrace_sessions__session_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aitrace/sessions/{session_id}/rediagnose:
+    post:
+      tags:
+      - session-ops
+      summary: Rediagnose
+      operationId: rediagnose_api_v1_aitrace_sessions__session_id__rediagnose_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RediagnoseRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RediagnoseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aitrace/sessions/{session_id}/attachments:
+    post:
+      tags:
+      - session-ops
+      summary: Upload Attachment
+      operationId: upload_attachment_api_v1_aitrace_sessions__session_id__attachments_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_attachment_api_v1_aitrace_sessions__session_id__attachments_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentUploadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/aitrace/feedback:
     post:
       tags:
@@ -103,6 +199,43 @@ paths:
       - HTTPBearer: []
 components:
   schemas:
+    AttachmentUploadResponse:
+      properties:
+        attachment_id:
+          type: string
+          title: Attachment Id
+        path:
+          type: string
+          title: Path
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        sha256:
+          type: string
+          title: Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - attachment_id
+      - path
+      - size_bytes
+      - sha256
+      title: AttachmentUploadResponse
+    Body_upload_attachment_api_v1_aitrace_sessions__session_id__attachments_post:
+      properties:
+        uploaded_by:
+          type: string
+          minLength: 1
+          title: Uploaded By
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - uploaded_by
+      - file
+      title: Body_upload_attachment_api_v1_aitrace_sessions__session_id__attachments_post
     DeliveryPayload:
       properties:
         product_id:
@@ -425,6 +558,45 @@ components:
       - case_id
       - script_path
       title: PassedCase
+    RediagnoseRequest:
+      properties:
+        trigger_user_id:
+          type: string
+          minLength: 1
+          title: Trigger User Id
+        hint:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Hint
+      additionalProperties: false
+      type: object
+      required:
+      - trigger_user_id
+      title: RediagnoseRequest
+    RediagnoseResponse:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+        round_no:
+          type: integer
+          title: Round No
+        round_id:
+          type: string
+          title: Round Id
+        task_id:
+          type: string
+          title: Task Id
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - round_no
+      - round_id
+      - task_id
+      title: RediagnoseResponse
     RejectedCase:
       properties:
         case_id:
@@ -531,6 +703,24 @@ components:
             type: object
           - type: 'null'
           title: Citation
+        rounds:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Rounds
+        referenced_logs:
+          items: {}
+          type: array
+          title: Referenced Logs
+        process_steps:
+          items: {}
+          type: array
+          title: Process Steps
+        grant_feedback:
+          type: boolean
+          title: Grant Feedback
+          default: false
       additionalProperties: false
       type: object
       required:

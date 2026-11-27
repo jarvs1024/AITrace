@@ -7,6 +7,7 @@ from aitrace.ai.prompts import (
     AnalysisContext,
     build_master_prompt,
     build_subagent_configs,
+    hints_from_task_payload,
     load_l1_artifacts,
 )
 from aitrace.profiles.models import DomainProfile
@@ -103,3 +104,32 @@ def test_load_l1_artifacts_reads_summary_metrics_slices(tmp_path) -> None:
 def test_load_l1_artifacts_missing_dir_raises_chinese_error(tmp_path) -> None:
     with pytest.raises(ValueError, match="L1 产物"):
         load_l1_artifacts(tmp_path / "data", "s1", 1)
+
+
+def test_hints_from_task_payload_renders_hint_and_attachments() -> None:
+    hints = hints_from_task_payload(
+        {
+            "hint": "怀疑是固件时序问题",
+            "attach_paths": ["rawlogs/BATCH-1/uploads/A-1_uart.log"],
+            "logs": {"test_log_path": "/logs/test.log"},
+        }
+    )
+    assert len(hints) == 2
+    assert "怀疑是固件时序问题" in hints[0]
+    assert "排查方向" in hints[0]
+    assert "rawlogs/BATCH-1/uploads/A-1_uart.log" in hints[1]
+
+
+def test_hints_from_task_payload_empty_payload_yields_no_hints() -> None:
+    assert hints_from_task_payload({}) == ()
+    assert hints_from_task_payload({"hint": None, "attach_paths": []}) == ()
+
+
+def test_rediagnose_hint_stays_inside_user_hint_block() -> None:
+    ctx = _ctx(hints=("工程师重诊提示：怀疑是固件时序问题（仅作排查方向，不构成证据）",))
+    prompt = build_master_prompt(ctx)
+    start = prompt.index("<user_hint>")
+    end = prompt.index("</user_hint>")
+    hint_pos = prompt.index("怀疑是固件时序问题")
+    assert start < hint_pos < end
+    assert "排查方向" in prompt

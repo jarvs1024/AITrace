@@ -26,6 +26,11 @@
       "title": "Domain Id",
       "type": "string"
     },
+    "grant_feedback": {
+      "default": false,
+      "title": "Grant Feedback",
+      "type": "boolean"
+    },
     "hardware_type": {
       "title": "Hardware Type",
       "type": "string"
@@ -33,6 +38,11 @@
     "message": {
       "title": "Message",
       "type": "string"
+    },
+    "process_steps": {
+      "items": {},
+      "title": "Process Steps",
+      "type": "array"
     },
     "product_id": {
       "title": "Product Id",
@@ -53,6 +63,11 @@
       ],
       "title": "Progress"
     },
+    "referenced_logs": {
+      "items": {},
+      "title": "Referenced Logs",
+      "type": "array"
+    },
     "report": {
       "anyOf": [
         {
@@ -69,6 +84,14 @@
     "round_no": {
       "title": "Round No",
       "type": "integer"
+    },
+    "rounds": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Rounds",
+      "type": "array"
     },
     "session_id": {
       "title": "Session Id",
