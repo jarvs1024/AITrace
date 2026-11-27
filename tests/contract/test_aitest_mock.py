@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -318,3 +319,135 @@ def test_reset_clears_deliveries_and_callbacks(monkeypatch: Any) -> None:
     assert stats["session_count"] == 0
     assert stats["completed_count"] == 0
     assert callbacks["items"] == []
+
+
+# --- 日志清单 / 流式下载（spec §6.3）、批次环境、通知配置与 webhook 捕获 ---
+
+_LOG_ROOT = Path(__file__).resolve().parents[2] / "mocks" / "aitest" / "logs"
+_TEST_LOG = _LOG_ROOT / "var" / "log" / "aitest" / "CASE-1021" / "test.log"
+WEBHOOK_BASE = "http://127.0.0.1:8002"
+
+
+def test_log_list_returns_case_logs_and_requires_token() -> None:
+    with TestClient(app) as client:
+        denied = client.get(
+            "/api/v1/aitest/logs", params={"batch_id": "B1", "case_id": "CASE-1021"}
+        )
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"batch_id": "BATCH-20261120-0089", "case_id": "CASE-1021"},
+            headers=READ,
+        )
+    assert denied.status_code == 403
+    assert response.status_code == 200
+    items = response.json()["items"]
+    paths = {item["path"] for item in items}
+    assert "var/log/aitest/CASE-1021/test.log" in paths
+    assert "var/log/aitest/CASE-1021/uart.log" in paths
+    assert all(item["size_bytes"] > 0 for item in items)
+
+
+def test_log_download_full_and_range() -> None:
+    raw = _TEST_LOG.read_bytes()
+    with TestClient(app) as client:
+        full = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log"},
+            headers=READ,
+        )
+        part = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log"},
+            headers={**READ, "Range": "bytes=0-9"},
+        )
+        suffix = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log"},
+            headers={**READ, "Range": "bytes=-5"},
+        )
+        bad = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log"},
+            headers={**READ, "Range": "bytes=999999-"},
+        )
+    assert full.status_code == 200
+    assert full.content == raw
+    assert part.status_code == 206
+    assert part.headers["content-range"] == f"bytes 0-9/{len(raw)}"
+    assert part.content == raw[:10]
+    assert suffix.status_code == 206
+    assert suffix.headers["content-range"] == f"bytes {len(raw) - 5}-{len(raw) - 1}/{len(raw)}"
+    assert suffix.content == raw[-5:]
+    assert bad.status_code == 416
+    assert bad.json()["code"] == "RANGE_NOT_SATISFIABLE"
+
+
+def test_log_download_truncates_by_failed_at_utc() -> None:
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "var/log/aitest/CASE-1021/test.log", "failed_at_utc": 1763100000},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    lines = response.content.decode("utf-8").splitlines()
+    # 只保留失败时刻之前的行（按行对齐防追加写污染首错窗）
+    assert len(lines) == 2
+    assert lines[0].startswith("[1763099900]")
+    assert lines[1].startswith("[1763100000]")
+
+
+def test_log_download_safety_and_missing() -> None:
+    with TestClient(app) as client:
+        traversal = client.get(
+            "/api/v1/aitest/logs",
+            params={"path": "../../deploy/secrets/README.md"},
+            headers=READ,
+        )
+        absolute = client.get("/api/v1/aitest/logs", params={"path": "/etc/passwd"}, headers=READ)
+        missing = client.get(
+            "/api/v1/aitest/logs", params={"path": "var/log/aitest/nope.log"}, headers=READ
+        )
+    assert traversal.status_code == 403
+    assert traversal.json()["code"] == "PATH_FORBIDDEN"
+    assert absolute.status_code == 403
+    assert absolute.json()["code"] == "PATH_FORBIDDEN"
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "LOG_NOT_FOUND"
+
+
+def test_batch_env_endpoint() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/aitest/tasks/BATCH-20261120-0089", headers=READ)
+        missing = client.get("/api/v1/aitest/tasks/BATCH-NOPE", headers=READ)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["batch_id"] == "BATCH-20261120-0089"
+    assert body["env_topology"]["host_ip"] == "10.23.45.67"
+    assert body["git_context"]["commit_id"].startswith("abc123")
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "BATCH_NOT_FOUND"
+
+
+def test_notify_config_and_webhook_capture(monkeypatch: Any) -> None:
+    monkeypatch.setenv("AITEST_MOCK_WEBHOOK_BASE", WEBHOOK_BASE)
+    with TestClient(app) as client:
+        client.post("/__mock/reset", headers=READ)
+        config = client.get(
+            "/api/v1/aitest/notify-config", params={"product_id": "ssd_9560"}, headers=READ
+        )
+        post = client.post(
+            "/api/v1/aitest/notify/webhook",
+            json={"msgtype": "text", "text": {"content": "聚合卡片"}},
+        )
+        cards = client.get("/__mock/cards", headers=READ)
+        client.post("/__mock/reset", headers=READ)
+        cleared = client.get("/__mock/cards", headers=READ)
+    assert config.status_code == 200
+    body = config.json()
+    assert body["webhook"] == f"{WEBHOOK_BASE}/api/v1/aitest/notify/webhook"
+    assert body["high_risk_webhook"] is None
+    assert "zhangsan" in body["at_users"]
+    assert post.status_code == 200
+    assert cards.json()["items"][-1]["text"]["content"] == "聚合卡片"
+    assert cleared.json()["items"] == []

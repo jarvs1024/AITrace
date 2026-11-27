@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,16 +9,19 @@ from typing import Annotated, Any
 
 import httpx
 import yaml
-from fastapi import FastAPI, Header, Query, Request
+from fastapi import FastAPI, Header, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 app = FastAPI(title="aitest mock", version="0.1.0")
 
 _READ_TOKEN = os.getenv("AITEST_READ_TOKEN", "mock-read-token")
-_SCENARIO = Path(__file__).resolve().parents[2] / "scenarios/default.yaml"
+_SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "default.yaml"
+_LOGS_ROOT = Path(__file__).resolve().parents[2] / "logs"
 _INDEX_HTML = Path(__file__).resolve().parent / "index.html"
+_WEBHOOK_BASE = os.getenv("AITEST_MOCK_WEBHOOK_BASE", "http://127.0.0.1:8002")
 _callbacks: list[dict[str, Any]] = []
 _deliveries: list[dict[str, Any]] = []
+_cards: list[dict[str, Any]] = []
 _client: httpx.Client | None = None
 # 运行时令牌场景覆盖（默认 None=不覆盖）；供 e2e 令牌异常路径动态切换。
 _scenario_override: str | None = None
@@ -161,6 +165,133 @@ def cases(
     _auth(x_aitest_read_token)
     data = yaml.safe_load(_SCENARIO.read_text(encoding="utf-8"))
     return {"batch_id": batch_id, "cases": data["cases"]}
+
+
+@app.get("/api/v1/aitest/tasks/{batch_id}")
+def batch_env(
+    batch_id: str,
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    """批次任务环境信息（对账核验设备映射与补全批次上下文）。"""
+    _auth(x_aitest_read_token)
+    data = yaml.safe_load(_SCENARIO.read_text(encoding="utf-8"))
+    if data.get("batch_id") != batch_id:
+        raise MockApiError(404, "BATCH_NOT_FOUND", "批次不存在")
+    return {
+        "batch_id": batch_id,
+        "env_topology": data.get("env_topology", {}),
+        "git_context": data.get("git_context", {}),
+    }
+
+
+def _resolve_log_path(path: str) -> Path:
+    """把 path 解析到日志根目录（白名单）；拒绝越界 / 反斜杠穿越 / 绝对路径。"""
+    if path.startswith("/") or "/../" in path or ".." in Path(path).parts:
+        raise MockApiError(403, "PATH_FORBIDDEN", "日志路径越界")
+    candidate = (_LOGS_ROOT / path).resolve()
+    if candidate != _LOGS_ROOT and _LOGS_ROOT not in candidate.parents:
+        raise MockApiError(403, "PATH_FORBIDDEN", "日志路径越界")
+    return candidate
+
+
+_TIMESTAMP_RE = re.compile(r"^\[(\d+)\]")
+
+
+def _truncate_by_failed_at(data: bytes, failed_at_utc: int) -> bytes:
+    """按失败时刻逻辑截断（按行对齐）：只保留时间戳 <= failed_at_utc 的行；无时间戳行保守保留。"""
+    kept: list[bytes] = []
+    for line in data.splitlines():
+        match = _TIMESTAMP_RE.match(line.decode("utf-8", errors="replace"))
+        if match is None or int(match.group(1)) <= failed_at_utc:
+            kept.append(line)
+    return b"\n".join(kept)
+
+
+def _parse_range(value: str, size: int) -> tuple[int, int]:
+    spec = value.removeprefix("bytes=").split(",")[0].strip()
+    start_s, _, end_s = spec.partition("-")
+    if start_s == "":
+        length = int(end_s)
+        start, end = max(size - length, 0), size - 1
+    elif end_s == "":
+        start, end = int(start_s), size - 1
+    else:
+        start, end = int(start_s), int(end_s)
+    if start >= size or start > end:
+        raise MockApiError(416, "RANGE_NOT_SATISFIABLE", "分段范围越界")
+    return start, min(end, size - 1)
+
+
+@app.get("/api/v1/aitest/logs")
+def log_download(
+    request: Request,
+    path: str | None = None,
+    failed_at_utc: int | None = None,
+    batch_id: str | None = None,
+    case_id: str | None = None,
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> Response:
+    """日志清单（batch_id+case_id）或单文件流式下载（path，支持 Range / failed_at_utc 截断）。"""
+    _auth(x_aitest_read_token)
+    if path is None:
+        if batch_id is None or case_id is None:
+            raise MockApiError(400, "MISSING_FILTER", "日志清单需要 batch_id 与 case_id")
+        prefix = _resolve_log_path(f"var/log/aitest/{case_id}")
+        if not prefix.is_dir():
+            return JSONResponse(status_code=200, content={"batch_id": batch_id, "items": []})
+        items: list[dict[str, Any]] = []
+        for file in sorted(prefix.rglob("*")):
+            if file.is_file():
+                items.append(
+                    {
+                        "path": str(file.relative_to(_LOGS_ROOT)),
+                        "size_bytes": file.stat().st_size,
+                    }
+                )
+        return JSONResponse(status_code=200, content={"batch_id": batch_id, "items": items})
+    candidate = _resolve_log_path(path)
+    if not candidate.is_file():
+        raise MockApiError(404, "LOG_NOT_FOUND", "日志不存在")
+    data = candidate.read_bytes()
+    if failed_at_utc is not None:
+        data = _truncate_by_failed_at(data, failed_at_utc)
+    headers = {"Accept-Ranges": "bytes", "Content-Type": "application/octet-stream"}
+    range_header = request.headers.get("range")
+    if range_header and range_header.startswith("bytes="):
+        start, end = _parse_range(range_header, len(data))
+        return Response(
+            content=data[start : end + 1],
+            status_code=206,
+            headers={**headers, "Content-Range": f"bytes {start}-{end}/{len(data)}"},
+        )
+    return Response(content=data, status_code=200, headers=headers)
+
+
+@app.get("/api/v1/aitest/notify-config")
+def notify_config(
+    product_id: str,
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    """分产品通知配置（钉钉机器人 webhook + @人名单 + 高危独立群）。"""
+    _auth(x_aitest_read_token)
+    return {
+        "webhook": f"{_WEBHOOK_BASE}/api/v1/aitest/notify/webhook",
+        "at_users": ["zhangsan"],
+        "high_risk_webhook": None,
+    }
+
+
+@app.post("/api/v1/aitest/notify/webhook")
+def notify_webhook(payload: dict[str, Any]) -> dict[str, bool]:
+    """钉钉机器人 webhook 替身：捕获知因发来的聚合卡片，供运营核对与测试断言。"""
+    _cards.append(payload)
+    return {"ok": True}
+
+
+@app.get("/__mock/cards")
+def cards(x_aitest_read_token: Annotated[str | None, Header()] = None) -> dict[str, Any]:
+    _auth(x_aitest_read_token)
+    return {"items": list(_cards)}
 
 
 @app.post("/api/v1/aitest/deliver")
@@ -317,4 +448,5 @@ def reset(x_aitest_read_token: Annotated[str | None, Header()] = None) -> dict[s
     _scenario_override = None
     _callbacks.clear()
     _deliveries.clear()
+    _cards.clear()
     return {"ok": True}
