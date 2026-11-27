@@ -3,7 +3,7 @@ VENV ?= .venv
 BIN := $(VENV)/bin
 TEST_DATABASE_URL ?= postgresql+psycopg://aitrace:aitrace@127.0.0.1:5432/aitrace_test
 
-.PHONY: install install-mock dev mock test test-unit test-integration contract e2e lint migrate run verify
+.PHONY: install install-mock dev mock test test-unit test-integration contract e2e lint migrate run verify perf
 
 install:
 	$(PY) -m venv $(VENV)
@@ -46,3 +46,6 @@ run:
 	$(BIN)/aitrace-server
 
 verify: lint test contract e2e
+
+perf:
+	TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(BIN)/python tools/perf_harness.py --profile all

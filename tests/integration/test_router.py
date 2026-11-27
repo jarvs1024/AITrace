@@ -149,3 +149,90 @@ def test_create_batch_common_idempotent(db_session) -> None:
     first = create_batch_common(db_session, queue, _Ids(), batch=batch, now=_NOW)
     second = create_batch_common(db_session, queue, _Ids(), batch=batch, now=_NOW)
     assert first == second
+
+
+def _add_late_ready_member(db_session, *, sid: str, case_id: str, fp: str) -> None:
+    db_session.add(
+        SessionModel(
+            session_id=sid,
+            product_id="ssd_9560",
+            batch_id="B1",
+            case_id=case_id,
+            domain_id="enterprise",
+            profile_version="v1",
+            trigger_user_id="zhangsan",
+            hardware_type="SSD",
+            stable_fingerprint=fp,
+            env_topology={},
+            git_context={},
+            created_at=_NOW + timedelta(seconds=100),
+        )
+    )
+    db_session.flush()
+    db_session.add(
+        Round(
+            round_id=f"round-{sid}",
+            session_id=sid,
+            round_no=1,
+            trigger_user_id="zhangsan",
+            queue_key="zhangsan",
+            stage=Stage.CLEANING.value,
+            round_status="RUNNING",
+            started_at=_NOW,
+        )
+    )
+    db_session.add(
+        TaskQueue(
+            task_id=f"task-{sid}",
+            batch_id="B1",
+            session_id=sid,
+            round_id=f"round-{sid}",
+            round_no=1,
+            product_id="ssd_9560",
+            case_id=case_id,
+            task_type=TaskType.CASE_CLEAN,
+            queue_key="zhangsan",
+            queue_state=QueueState.READY.value,
+            created_at=_NOW + timedelta(seconds=100),
+            updated_at=_NOW,
+        )
+    )
+    db_session.flush()
+
+
+def test_late_ready_member_waits_on_routed_leader(db_session) -> None:
+    queue = QueueRepository(db_session)
+    # 8 个失败例：fp-a 3/8 与迟到的 fp-a 4/8 均不构成多数、不触发批次级升级
+    _seed(
+        db_session,
+        n_sessions=8,
+        fps=["fp-a"] * 3 + ["fp-b"] * 3 + ["fp-c"] * 2,
+    )
+    assert route_ready_cleans(db_session, queue, _Ids(), _NOW, AISettings()) == 8
+    leader = next(t for t in _tasks(db_session) if t.session_id == "s0")
+    assert leader.task_type == TaskType.CASE_AI
+    leader.queue_state = QueueState.DONE.value
+    db_session.flush()
+    # 迟到的第九个成员：清洗在首轮路由之后才完成，且组规模仍未跨过升级线
+    _add_late_ready_member(db_session, sid="s8", case_id="C8", fp="fp-a")
+    assert route_ready_cleans(db_session, queue, _Ids(), _NOW, AISettings()) == 1
+    late_task = next(t for t in _tasks(db_session) if t.session_id == "s8")
+    assert late_task.queue_state == QueueState.WAITING.value
+    assert late_task.depends_on_task_id == leader.task_id
+    late_session = db_session.get(SessionModel, "s8")
+    assert late_session is not None and late_session.citation_group_id == "s0"
+
+
+def test_late_ready_member_joins_escalated_common(db_session) -> None:
+    queue = QueueRepository(db_session)
+    _seed(db_session, n_sessions=6, fps=["fp-a"] * 6)
+    assert route_ready_cleans(db_session, queue, _Ids(), _NOW, AISettings()) == 6
+    common = next(t for t in _tasks(db_session) if t.task_type == TaskType.BATCH_COMMON)
+    assert common.queue_state == QueueState.READY.value
+    _add_late_ready_member(db_session, sid="s6", case_id="C6", fp="fp-a")
+    assert route_ready_cleans(db_session, queue, _Ids(), _NOW, AISettings()) == 1
+    late_task = next(t for t in _tasks(db_session) if t.session_id == "s6")
+    assert late_task.queue_state == QueueState.WAITING.value
+    assert late_task.depends_on_task_id == common.task_id
+    late_session = db_session.get(SessionModel, "s6")
+    assert late_session is not None and late_session.citation_group_id == common.task_id

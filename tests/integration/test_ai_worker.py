@@ -434,3 +434,76 @@ def test_worker_prescreen_conflict_correction_keeps_conflict_kind(db_session, tm
     round_row = db_session.execute(select(Round).where(Round.round_id == "r1")).scalar_one()
     report = db_session.get(Report, round_row.report_id)
     assert _ref_dim(report) == 0.3
+
+
+def _seed_batch_common(db_session, tmp_path: Path) -> tuple[TaskQueue, Path]:
+    member_task, base = _seed(db_session, tmp_path)
+    member_task.queue_state = QueueState.DONE.value
+    member = db_session.get(SessionModel, "s1")
+    assert member is not None
+    member.citation_group_id = "task-bc-1"
+    db_session.add(
+        SessionModel(
+            session_id="s-bc",
+            product_id="ssd_9560",
+            batch_id="B1",
+            case_id="",
+            domain_id="enterprise",
+            profile_version="v1",
+            trigger_user_id="zhangsan",
+            hardware_type="SSD",
+            stable_fingerprint=None,
+            env_topology={},
+            git_context={},
+            created_at=_NOW,
+        )
+    )
+    db_session.flush()
+    db_session.add(
+        Round(
+            round_id="r-bc",
+            session_id="s-bc",
+            round_no=1,
+            trigger_user_id="zhangsan",
+            queue_key="zhangsan",
+            stage=Stage.CLEANING.value,
+            round_status="RUNNING",
+            started_at=_NOW,
+        )
+    )
+    task = TaskQueue(
+        task_id="task-bc-1",
+        batch_id="B1",
+        session_id="s-bc",
+        round_id="r-bc",
+        round_no=1,
+        product_id="ssd_9560",
+        case_id="",
+        task_type=TaskType.BATCH_COMMON,
+        queue_key="zhangsan",
+        queue_state=QueueState.READY.value,
+        priority=2,
+        created_at=_NOW,
+        updated_at=_NOW,
+    )
+    db_session.add(task)
+    db_session.flush()
+    return task, base
+
+
+def test_batch_common_loads_member_l1_and_completes(db_session, tmp_path) -> None:
+    task, base = _seed_batch_common(db_session, tmp_path)
+    window_hash = hashlib.sha256(
+        (base / "evidence/s1/round_1/error_window.txt").read_bytes()
+    ).hexdigest()
+    worker = _worker(db_session, _json_events(_ok_result(window_hash)), data_dir=base)
+    done = worker.run_once(db_session, _NOW, "ai-worker-1")
+    assert done == 1
+    db_session.refresh(task)
+    assert task.queue_state == QueueState.DONE.value
+    round_row = db_session.execute(select(Round).where(Round.round_id == "r-bc")).scalar_one()
+    assert round_row.round_status == "AWAITING_FEEDBACK"
+    assert round_row.report_id is not None
+    report = db_session.get(Report, round_row.report_id)
+    assert report.result["root_cause"]["category"] == "FW_DEFECT"
+    assert any(entry["hash"] == window_hash for entry in report.referenced_logs)

@@ -731,6 +731,20 @@ git push
 | T5 readyz+自检 | commit 2c806db；tests/unit/test_startup.py 8 用例 + test_readyz.py 4 用例 + test_main.py 2 用例（含失败退出 SystemExit(1)）全绿；`make verify`：lint 全过、418 passed + 26 contract + 4 e2e，coverage 94.61%；契约文件刷新 +12 行（/readyz 纯新增）；dev 实启验证：`GET /api/v1/readyz` 200 ready（version 0.1.0）、rawlogs/memory/logs 子目录自动创建（evidence/runtime 已存在不动）；SIGTERM 后日志呈现 Shutting down → Waiting for application shutdown → Application shutdown complete 干净排水；凭据扫描命中只回显文件名（测试断言消息不含 ASCII「token」）、HOME 命中仅警告不阻断 |
 | T6 备份/恢复 | commit（见本轮提交）；tests/unit/test_backup.py 12 用例全绿（DSN 拆分密码只入 env、空间不足 SpaceShortageError 且零 dump、保留策略同删 digest、dump+digest+list 校验、推送失败保留 dump 并告警、非空目标拒绝/--force 放行、console 退出码 0/1/3）；tests/ops/test_backup_drill.py 2 用例真实 pg_dump/pg_restore 通过（AITRACE_OPS_DRILL=1 门禁）；CLI 演练：`aitrace-backup backup --staging /tmp/aitrace-backup-drill --keep 2` 产出 31119 字节 dump + SHA-256 digest，`restore --force` 恢复到测试库后 `make test-integration` 98 passed；`make verify` 全绿 |
 | T7 发布脚本 | commit（见本轮提交）；tests/ops/test_release_scripts.py 4 用例全绿 + tests/ops/test_deploy_assets.py 14 用例全绿（含 bash -n 与可执行位）；fake 树驱动六步链路：日志标记顺序 预检通过→安装完成→服务已停止→迁移完成→切换 current→服务已启动→readyz 通过，systemctl 调用顺序 stop→alembic→start；readyz 失败自动回滚（current 还原 v1、start×2、新 release 目录保留待人工核查）；保留策略 v1.1.0..v1.5.0 → 仅剩 1.3/1.4/1.5；rollback.sh 中文报错「目标版本目录不存在」；`make verify`：lint 全过、434 passed + 2 skipped + 26 contract + 4 e2e，coverage 94.49% |
+| T8 perf 标定 | commit（见本轮提交）；tests/perf/test_perf_math.py 8 用例全绿（最邻近等级分位/前序深度分桶/同桶公平 P95 差/summarize 秒级对照语义、缺失样本不虚构）；快配实跑 `--profile all --batches 8`（报告 2026-11-27T09:29Z）：burndown 8/8 达标（受理 P95 0.027s、排队转清洗 P95 22.6s、队列等待分桶 0.0/0.0/0.0/0.0、e2e 1.5/22.6s、批次完成 P95 23.8s、回调 24≥24）；fairness 11/11（受理 0.032s、清洗 11.6s、跨用户公平 gap 0.0/0.0/0.0、e2e 8.5/10.5s、批次 12.2s）；backpressure 投递 20/受理 10/429 QUEUE_FULL×10 retry_after P95 60s；2 批诊断跑 DB 复核：batch 全 COMPLETED、escalated 空、ai_used=3、task_queue 无 FAILED；实跑逼出三门产品缺陷并 TDD 修复（见裁决记录 T8）；`make lint` 全绿（ruff check/format + mypy 102 源文件），调度链集成测试 32 passed（含新增 3 用例） |
+
+裁决记录（T8）：
+- 受理 RTT 口径统一为秒（httpx 往返直接存秒并对照 §7.1 秒级目标）；此前毫秒数直接比秒级目标造成虚假 MISS（实测实为 15~32ms），p99 贴近 30 的「截尾」实为毫秒量级。
+- 同批用例日志此前完全同构 → 稳定指纹一致 → 整批多数派升级；burndown「3 例独立 AI + 预算 3」正路从未被走到。现 err_code 按用例序号互异（`0x1A{idx}`）→ 指纹互异；fairness 每用户 4 例即 3 AI + 1 预算耗尽规则兜底，同时保住升级与预算耗尽两条路径的实跑覆盖。
+- fairness profile 补齐受理/排队转清洗/批次完成指标收集（此前丢弃 → 凭空 4 条虚假 MISS）；跨用户公平按「同前序深度桶内各 queue_key P95 差」聚合，单键或无样本桶 gap=0.0。
+- 深度阶梯裁决：fake AI 即时完成 + tick 1s 下队前等待≈0（实测 0.0s），真实阶梯需真实 AI 链（GLM 级秒长）；分桶机制由 tests/perf 单测锁定口径，报告实际值照录不虚构。
+- 阶段事件采集经 uvicorn `--log-config` dictConfig 注入 root INFO console handler（工厂模式不调用 configure_logging，默认无该输出）；队列等待 = READY→AI_RUNNING 阶段事件按 queue_key 到达序枚举的前序深度。
+- 背压 profile 经 `AITRACE_QUEUE__GLOBAL_DEPTH=2`/`PER_TOKEN_DEPTH=2` 环境注入（不动默认配置、不依赖暂停 API）。每 profile 独立 app+mock 子进程对 + TRUNCATE 隔离；服务日志保留 `app_lines_{profile}.log`（tmp 目录）供排障。
+- perf 工具只进 ruff 门禁（mypy/coverage 排除 tools/），tests/perf 进 pytest 门禁。
+- 实跑逼出的三门产品缺陷（均 TDD 修复，测试先行）：
+  ① 路由丢弃迟到 READY 成员 → 成员永停 READY/会话卡 CLEANING/批次无法关账：迟到成员挂既有结论链（兄弟 leader 或 batch_common），leader 任务行缺失时报中文「同组首例任务行缺失，转人工复核」（tests/integration/test_router.py 新增 2 用例）。
+  ② BATCH_COMMON 会话没有自己的清洗回合 → AI worker 加载 L1 崩溃：改引用批内最早完成清洗的成员 L1，无可用成员报中文终态错误 BATCH_REF_MISSING（tests/integration/test_ai_worker.py 新增 1 用例）。
+  ③ mock 通知 webhook 默认端口无人监听 → 回调 Connection refused：harness 注入 `AITEST_MOCK_WEBHOOK_BASE` 指向 mock 实例。
 
 裁决记录（T7）：
 - 升级前「当前服务 readyz」预检要求现网可探活，探活失败即中止（避免在服务已坏的状态上继续变更）；测试环境用 SVC_DOWN/SVC_BROKEN 标记驱动的假 curl 模拟服务生命周期。

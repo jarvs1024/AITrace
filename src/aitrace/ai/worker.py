@@ -36,7 +36,7 @@ from aitrace.ai.validate import (
     validate_conclusion,
 )
 from aitrace.callback.enqueue import enqueue_progress, enqueue_result
-from aitrace.core.enums import QueueState, Stage
+from aitrace.core.enums import QueueState, Stage, TaskType
 from aitrace.core.settings import AISettings, AitestSettings
 from aitrace.knowledge.prescreen import MemoryHit, prescreen_case_library
 from aitrace.notify.enqueue import enqueue_case_notify
@@ -189,15 +189,26 @@ class AIWorker:
             "Qoder 主引擎正在全局归类并定界（故障模式识别）",
             now,
         )
-        artifacts = load_l1_artifacts(self._base_dir, task.session_id, task.round_no)
+        ctx_session = session_row
+        if task.task_type == TaskType.BATCH_COMMON:
+            # 批次级分析没有自己的清洗回合：引用批内最早完成清洗的用例 L1 作为上下文
+            member = self._batch_reference_member(session, task)
+            if member is None:
+                raise _Terminal(
+                    "BATCH_REF_MISSING", "批次级分析缺少可引用的成员 L1 产物：批内无用例完成清洗"
+                )
+            artifacts = load_l1_artifacts(self._base_dir, member.session_id, member.latest_round_no)
+            ctx_session = member
+        else:
+            artifacts = load_l1_artifacts(self._base_dir, task.session_id, task.round_no)
         hit = prescreen_case_library(
             session,
-            domain_id=session_row.domain_id,
-            stable_fingerprint=session_row.stable_fingerprint,
+            domain_id=ctx_session.domain_id,
+            stable_fingerprint=ctx_session.stable_fingerprint,
             round_id=task.round_id,
             now=now,
         )
-        ctx = self._build_ctx(task, session_row, batch, artifacts, profile, hit)
+        ctx = self._build_ctx(task, ctx_session, batch, artifacts, profile, hit)
         prompt = build_master_prompt(ctx)
         source_agent, probe_agent = build_subagent_configs(profile)
         events = self._stream(
@@ -347,6 +358,24 @@ class AIWorker:
                 f"领域画像快照缺失：{domain_id}；要求：先投递任务（投递时自动快照）或人工补齐画像",
             )
         return DomainProfile(**row.config)
+
+    def _batch_reference_member(self, session: Session, task: TaskQueue) -> SessionModel | None:
+        members = (
+            session.execute(
+                select(SessionModel)
+                .where(SessionModel.batch_id == task.batch_id, SessionModel.case_id != "")
+                .order_by(SessionModel.created_at.asc())
+            )
+            .scalars()
+            .all()
+        )
+        for member in members:
+            round_dir = (
+                self._base_dir / "evidence" / member.session_id / f"round_{member.latest_round_no}"
+            )
+            if round_dir.is_dir():
+                return member
+        return None
 
     def _build_ctx(
         self,

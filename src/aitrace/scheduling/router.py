@@ -96,6 +96,44 @@ def _route_batch(
             continue
         leader_task = task_by_session.get(group.leader.session_id)
         if leader_task is None:
+            # 组首例已在更早的轮询中完成路由（其任务行被原地转换为 CASE_AI）。
+            # 迟到的 READY 成员必须挂到既有结论链上，否则会永远停在 READY、
+            # 会话卡在 CLEANING，批次无法关账。
+            late_tasks: list[TaskQueue] = []
+            for member in group.members:
+                late_task = task_by_session.get(member.session_id)
+                if late_task is not None:
+                    late_tasks.append(late_task)
+            if gate.get("escalated") and gate.get("batch_common_task_id"):
+                common_id = str(gate["batch_common_task_id"])
+                for task in late_tasks:
+                    task.queue_state = QueueState.WAITING.value
+                    task.depends_on_task_id = common_id
+                    task.updated_at = now
+                    member_row = session.get(SessionModel, task.session_id)
+                    if member_row is not None:
+                        member_row.citation_group_id = common_id
+                    routed += 1
+                continue
+            leader_live = session.execute(
+                select(TaskQueue)
+                .where(TaskQueue.session_id == group.leader.session_id)
+                .order_by(TaskQueue.created_at.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            if leader_live is None:
+                for task in late_tasks:
+                    _rule_other(session, ids, task, now, batch, "同组首例任务行缺失，转人工复核")
+                    routed += 1
+                continue
+            for task in late_tasks:
+                task.queue_state = QueueState.WAITING.value
+                task.depends_on_task_id = leader_live.task_id
+                task.updated_at = now
+                member_row = session.get(SessionModel, task.session_id)
+                if member_row is not None:
+                    member_row.citation_group_id = group.leader.session_id
+                routed += 1
             continue
         if ai_used < settings.batch_ai_budget:
             ai_used += 1
