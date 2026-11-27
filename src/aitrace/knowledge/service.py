@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from aitrace.core.enums import QueueState, TaskType
 from aitrace.core.errors import AitraceError
 from aitrace.core.ids import SystemClock, UuidIdGenerator
+from aitrace.notify.enqueue import enqueue_batch_notify, pending_negated_exists
 from aitrace.persistence.models import (
     CaseContribution,
     CaseLibrary,
@@ -369,35 +370,26 @@ class KnowledgeService:
         session_row = self._session.get(SessionModel, round_row.session_id)
         if session_row is None:
             return
-        existing = self._session.execute(
-            select(TaskQueue).where(
-                TaskQueue.session_id == round_row.session_id,
-                TaskQueue.round_no == round_row.round_no,
-                TaskQueue.task_type == TaskType.NOTIFY,
-            )
-        ).first()
-        if existing is not None:
+        if pending_negated_exists(
+            self._session, session_row.batch_id, round_row.session_id, round_row.round_no
+        ):
             return
-        queue.enqueue(
-            NewTask(
-                task_id=self._ids.new("T"),
-                batch_id=session_row.batch_id,
-                session_id=round_row.session_id,
-                round_id=round_row.round_id,
-                round_no=round_row.round_no,
-                product_id=session_row.product_id,
-                case_id=session_row.case_id,
-                task_type=TaskType.NOTIFY,
-                queue_key=session_row.batch_id,
-                payload={
-                    "event": "negated",
-                    "batch_id": session_row.batch_id,
-                    "session_id": round_row.session_id,
-                    "source_session_id": source_session_id,
-                    "message": "同批引用的首例结论已被否定，本案例引用注记已标 CITING_STALE",
-                },
-            ),
-            now,
+        enqueue_batch_notify(
+            self._session,
+            queue,
+            self._ids,
+            event={
+                "event": "negated",
+                "session_id": round_row.session_id,
+                "citing_session_id": round_row.session_id,
+                "citing_round_no": round_row.round_no,
+                "source_session_id": source_session_id,
+                "message": "同批引用的首例结论已被否定，本案例引用注记已标 CITING_STALE",
+            },
+            batch_id=session_row.batch_id,
+            product_id=session_row.product_id,
+            queue_key=session_row.batch_id,
+            now=now,
         )
 
     def _enqueue_materialize(self, queue: QueueRepository, domain_id: str, now: datetime) -> None:

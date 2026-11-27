@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from aitrace.callback.enqueue import enqueue_result
 from aitrace.core.enums import QueueState, TaskType
 from aitrace.core.settings import AISettings
+from aitrace.notify.enqueue import enqueue_case_notify
 from aitrace.persistence.models import Batch, Report, Round, SessionModel, TaskQueue
 from aitrace.persistence.repositories.queue import QueueRepository
 from aitrace.scheduling.aggregate import (
@@ -197,6 +198,22 @@ def _cite(
         citation=citation,
         now=now,
     )
+    cite_session_row = session.get(SessionModel, round_row.session_id)
+    if cite_session_row is not None:
+        category = (report.result.get("root_cause") or {}).get("category", "OTHER")
+        detail = str((report.result.get("root_cause") or {}).get("detail", "引用同批案例结论"))
+        enqueue_case_notify(
+            session,
+            queue,
+            ids,
+            session_row=cite_session_row,
+            round_id=round_row.round_id,
+            round_no=round_row.round_no,
+            category=category,
+            detail=detail,
+            confidence=leader_round.confidence,
+            now=now,
+        )
     return True
 
 

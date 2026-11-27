@@ -39,6 +39,7 @@ from aitrace.callback.enqueue import enqueue_progress, enqueue_result
 from aitrace.core.enums import QueueState, Stage
 from aitrace.core.settings import AISettings, AitestSettings
 from aitrace.knowledge.prescreen import MemoryHit, prescreen_case_library
+from aitrace.notify.enqueue import enqueue_case_notify
 from aitrace.persistence.models import (
     Batch,
     Profile,
@@ -262,7 +263,7 @@ class AIWorker:
             hard_caps=caps,
             low_threshold=self._settings.low_confidence_threshold,
         )
-        self._persist(session, task, session_row, conclusion, scored, artifacts, now, hit)
+        self._persist(session, queue, task, session_row, conclusion, scored, artifacts, now, hit)
         queue.finish(
             task.task_id, task.lease_owner or "", task.lease_generation, QueueState.DONE, now
         )
@@ -416,6 +417,7 @@ class AIWorker:
     def _persist(
         self,
         session: Session,
+        queue: QueueRepository,
         task: TaskQueue,
         session_row: SessionModel,
         conclusion: ValidatedConclusion,
@@ -480,6 +482,18 @@ class AIWorker:
         round_row.finished_at = now
         session_row.status = "COMPLETED"
         session.flush()
+        enqueue_case_notify(
+            session,
+            queue,
+            self._ids,
+            session_row=session_row,
+            round_id=round_row.round_id,
+            round_no=round_row.round_no,
+            category=conclusion.category,
+            detail=conclusion.detail,
+            confidence=scored.score,
+            now=now,
+        )
 
     def _progress(
         self,

@@ -7,7 +7,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from aitrace.core.enums import QueueState, Stage
+from aitrace.notify.enqueue import enqueue_case_notify
 from aitrace.persistence.models import Report, Round, SessionModel, TaskQueue
+from aitrace.persistence.repositories.queue import QueueRepository
 
 
 def write_rule_report(
@@ -66,3 +68,15 @@ def write_rule_report(
     task.lease_until = datetime(1970, 1, 1, tzinfo=now.tzinfo)
     task.updated_at = now
     session.flush()
+    enqueue_case_notify(
+        session,
+        QueueRepository(session),
+        ids,
+        session_row=session_row,
+        round_id=round_row.round_id,
+        round_no=round_row.round_no,
+        category=category,
+        detail=detail,
+        confidence=None,
+        now=now,
+    )

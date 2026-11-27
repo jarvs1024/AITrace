@@ -23,6 +23,7 @@ from aitrace.runtime.dispatcher import (
     build_ai_worker,
     build_callback_worker,
     build_cutoff_rules,
+    build_notify_worker,
     run_tick,
 )
 
@@ -91,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.cleaning_registry = CleaningRegistry()
         app.state.ai_worker = build_ai_worker(settings, ids=app.state.ids)
         app.state.callback_worker = build_callback_worker(settings)
+        app.state.notify_worker = build_notify_worker(settings, clock=app.state.clock)
     install_error_handlers(app)
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(deliveries.router, prefix="/api/v1")

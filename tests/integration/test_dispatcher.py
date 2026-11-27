@@ -139,7 +139,7 @@ def test_run_tick_drives_full_chain(db_session, tmp_path: Path, test_settings: S
         db_session.commit()
     task = db_session.execute(
         select(TaskQueue).where(
-            TaskQueue.session_id == session_id, TaskQueue.task_type != TaskType.CALLBACK.value
+            TaskQueue.session_id == session_id, TaskQueue.task_type == TaskType.CASE_AI.value
         )
     ).scalar_one()
     assert task.queue_state == QueueState.DONE.value

@@ -15,6 +15,7 @@ from aitrace.cleaning.rules import RuleSet
 from aitrace.cleaning.worker import CleaningWorker
 from aitrace.core.settings import Settings, SettingsError
 from aitrace.knowledge.materialize import MemoryMaterializeWorker
+from aitrace.notify.worker import NotifyWorker, build_notify_config_fetcher, build_notify_poster
 from aitrace.persistence.repositories.queue import QueueRepository
 from aitrace.scheduling.batch_close import close_batch_if_done
 from aitrace.scheduling.pause import abandon_stalled, recover_paused
@@ -65,6 +66,15 @@ def build_callback_worker(settings: Settings) -> CallbackWorker:
     )
 
 
+def build_notify_worker(settings: Settings, *, clock: Any | None = None) -> NotifyWorker:
+    return NotifyWorker(
+        None,
+        build_notify_config_fetcher(settings.aitest),
+        build_notify_poster(),
+        clock=clock,
+    )
+
+
 def run_tick(session: Session, state: Any, owner: str) -> None:
     """一次调度 tick：清洗 → 路由 → AI → 释放 → 放弃/恢复 → 回调 → 关账。
 
@@ -93,6 +103,11 @@ def run_tick(session: Session, state: Any, owner: str) -> None:
         state.callback_worker.run_once(session, now, owner)
 
     close_batch_if_done(session, queue, ids, now)
+
+    # 通知消费者：聚合卡片 → 钉钉 webhook；降级失败只伤本任务，不阻塞主链路
+    notify_worker = getattr(state, "notify_worker", None)
+    if notify_worker is not None:
+        notify_worker.run_once(session, queue, now, owner)
 
     # 独立队列：反馈闭环入队 MEMORY_MATERIALIZE，材料化热记忆文件（temp+rename 原子替换）
     MemoryMaterializeWorker(queue).run_once(

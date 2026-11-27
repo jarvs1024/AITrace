@@ -233,11 +233,19 @@
   ```
 - 触发点：批次关账（`batch_close` 终态汇总卡片）、报告 COMPLETED 回写后（首例卡片/高危卡片 `FW ASSERT`/`AER`/`CXL Link Down` 关键词判定）、反馈级联否定（卡片追加行）。入队均在各自业务事务后 enqueue task_type=notify，queue_key=batch_id。
 - **降级原则**：任何 notify 失败只影响本 notify 任务（retry 后 FORGET），不阻塞、不回调、不波及主链路。
-- [ ] **Step 1: 单元测试先行**（build_card 纯函数：首例卡/计数聚合/高危独立卡/终态汇总/否定追加行；NotifyWorker 用假 fetcher/poster 断言聚合与缓存 TTL；fetcher 抛错 → default_webhook；poster 抛错 → 任务 FAILED 不抛栈）。
-- [ ] **Step 2: 跑红**。
-- [ ] **Step 3: 实现 + run_tick 挂载 + batch_close 与 AI 回写处入队**。
-- [ ] **Step 4: 集成测试**（DB 批次终态 → notify 任务 → 卡片内容正确）。
-- [ ] **Step 5: 跑绿 + 回归**。
+- [x] **Step 1: 单元测试先行**（build_card 纯函数：首例卡/计数聚合/高危独立卡/终态汇总/否定追加行；NotifyWorker 用假 fetcher/poster 断言聚合与缓存 TTL；fetcher 抛错 → default_webhook；poster 抛错 → 任务 FAILED 不抛栈）。
+- [x] **Step 2: 跑红**。
+- [x] **Step 3: 实现 + run_tick 挂载 + batch_close 与 AI 回写处入队**。
+- [x] **Step 4: 集成测试**（DB 批次终态 → notify 任务 → 卡片内容正确）。
+- [x] **Step 5: 跑绿 + 回归**（310 passed，覆盖 95.12%，make lint 全绿）。
+- **实施裁决**（红线⑧回写）：
+  1. `NotifyWorker.run_once` 签名裁决为 `run_once(self, session, queue, now, owner)`——QueueRepository 会话绑定，worker 常驻 app.state 时 queue 由调用方按会话注入（计划原签名 `run_once(self, session, now, owner)`）。
+  2. notify payload 为单事件契约：`payload = {event, batch_id, product_id, …事件字段}`（Task #48 既有断言 `notify.payload["event"] == "negated"` 逐字锁定）；高危卡非独立事件，嵌套为 `payload["high_risk"] = {"keywords": [...], "detail": "..."}`，batch_card 处理时同任务追加第二张卡。
+  3. 失败退避不走 `queue.retry()`（其对非 clean 任务置 READY 会错误暴露给 AI claim）：`_requeue_or_fail` 手动 attempts+1，<max → PENDING + `next_retry_at=30*2^(n-1)`（上限 1800s），≥max → FAILED。
+  4. mock 的 notify-config 用 GET（X-Aitest-Read-Token 头），非计划 POST 猜测。
+  5. `batch_close._TERMINAL` 补 "VALID"/"INVALID"——已反馈批次此前永不关账、final 卡永不发送（真实缺陷）。
+  6. negated 事件额外保留 `session_id`（citing 会话）键以满足 Task #48 逐字断言 `notify.payload["session_id"] == "S-cite"`。
+  7. `test_dispatcher.py::test_run_tick_drives_full_chain` 查询过滤器由 `task_type != CALLBACK` 收窄为 `== CASE_AI`——notify 任务按设计新增为每案例一行，原 `scalar_one()` 多行歧义；断言 `queue_state == DONE` 逐字保留。
 
 ### Task 8: SSH 只读探针（白名单交集 + 审计）
 
