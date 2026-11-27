@@ -74,6 +74,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aitrace/feedback:
+    post:
+      tags:
+      - feedback
+      summary: Submit Feedback
+      operationId: submit_feedback_api_v1_aitrace_feedback_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
 components:
   schemas:
     DeliveryPayload:
@@ -240,6 +267,98 @@ components:
       - env_binding
       - logs
       title: FailedCase
+    FeedbackCorrection:
+      properties:
+        root_cause_category:
+          type: string
+          enum:
+          - TEST_ENV_ERROR
+          - FW_DEFECT
+          - SCRIPT_ISSUE
+          - HW_DEFECT
+          - OTHER
+          title: Root Cause Category
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - root_cause_category
+      - reason
+      title: FeedbackCorrection
+    FeedbackRequest:
+      properties:
+        session_id:
+          type: string
+          minLength: 1
+          title: Session Id
+        batch_id:
+          type: string
+          minLength: 1
+          title: Batch Id
+        case_id:
+          type: string
+          title: Case Id
+          default: ''
+        round_no:
+          anyOf:
+          - type: integer
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Round No
+        reviewer:
+          type: string
+          minLength: 1
+          title: Reviewer
+        action:
+          type: string
+          enum:
+          - VALID
+          - INVALID
+          title: Action
+        correction:
+          anyOf:
+          - $ref: '#/components/schemas/FeedbackCorrection'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - batch_id
+      - reviewer
+      - action
+      title: FeedbackRequest
+    FeedbackResponse:
+      properties:
+        feedback_id:
+          type: string
+          title: Feedback Id
+        session_id:
+          type: string
+          title: Session Id
+        round_no:
+          type: integer
+          title: Round No
+        version:
+          type: integer
+          title: Version
+        status:
+          type: string
+          enum:
+          - applied
+          - idempotent
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - feedback_id
+      - session_id
+      - round_no
+      - version
+      - status
+      title: FeedbackResponse
     GitContext:
       properties:
         repo_url:
