@@ -281,13 +281,22 @@
 
 ### Task 9: 验收（门禁 + 系统级 + 浏览器 + 文档回写）
 
-- [ ] `make verify` 全绿（lint/mypy/test/contract/e2e，安全测试并入 make test）。
-- [ ] 系统级：fake 链服务常驻，真实 HTTP 走一遍「投递 → 完成 → 反馈 VALID → 案例库/热文件 → 看板数字变化」，NOTIFY 卡片可见（mock /__mock/cards）。
-- [ ] 浏览器：mock 控制台与看板新数据实测（at least 截图/snapshot 证据）。
-- [ ] 文档回写：spec 附录 B（M3 实施修订记录）、`docs/superpowers/plans/2026-11-25-aitrace-v1-program.md`（M3 状态行）、`README.md` 仓库状态、`mocks/aitest/README.md`。
-- [ ] 阶段边界 commit + push（用户已授权本里程碑「验证 ok 后提交 push」）。
+- [x] `make verify` 全绿（lint/mypy/test/contract/e2e，安全测试并入 make test）。
+- [x] 系统级：fake 链服务常驻，真实 HTTP 走一遍「投递 → 完成 → 反馈 VALID → 案例库/热文件 → 看板数字变化」，NOTIFY 卡片可见（mock /__mock/cards）。
+- [x] 浏览器：mock 控制台与看板新数据实测（at least 截图/snapshot 证据）。
+- [x] 文档回写：spec 附录 B（M3 实施修订记录）、`docs/superpowers/plans/2026-11-25-aitrace-v1-program.md`（M3 状态行）、`README.md` 仓库状态、`mocks/aitest/README.md`。
+- [x] 阶段边界 commit + push（用户已授权本里程碑「验证 ok 后提交 push」）。
 
 ## 兼容性说明（与 spec 冲突时的裁决基线）
 
 - 引用级联只覆盖**同批同组引用注记改写**与 `CITING_STALE`；`cited_version` 语义维持 M2 现状（版本=被引用报告轮次重诊次数+1）。
 - 看板 hot_memory_hit_rate 因子缺轮次级预筛日志，以 `use_hits/完成轮次数` 近似，README 口径注明（错成本：需口径修复，仅看板展示，不影响分析）。
+## 执行记录（2026-11-27）
+
+**门禁**：`make verify` 全绿 fresh——`make lint` 清洁（mypy 90 源文件）· `make test` 341 passed（cov 95.05%，含安全测试）· `make contract` 26 passed · `make e2e` 4 passed；M3 无新增 schema 迁移（沿用 0001–0005）。
+
+**系统级 fake 链真实 HTTP 走查**（mock :8090 + AITrace :8080 双服务常驻，aitrace_test 库）：投递批次 BATCH-WALK（CASE-walk，四路日志源 data/live/logs/）→ 清洗 → 路由 → fake AI → 状态 API `stage=COMPLETED`（report `root_cause=FW_DEFECT`、`confidence=0.78`、solution「升级固件至 2.4.2」）→ 反馈 `VALID`（反馈号 F-20261127-92766717，status=applied）→ case_library 行 `entry_status=valid`（frame af1be7fcc8b16c96，confirm_count=1）→ 热记忆物化 `data/live/memory/domain_enterprise.json` → 看板 `knowledge.case_count` 0→1、`overview.feedback_distribution` VALID:1。NOTIFY 卡片经 mock `GET /__mock/cards` 捕获 9 张，其中 BATCH-WALK-0003 三卡齐全：诊断卡（「已出结论：1 例」+ CASE-walk FW_DEFECT 0.78）、高危卡（命中关键词 AER + 摘要「固件缺陷：超时路径缺少重试，触发 AER 致命错误」）、终态汇总卡（批次状态 COMPLETED + 会话分布）。回调记录 5 条（PROGRESS×4 + RESULT×1）。失败批次 BATCH-WALK-0001/0002（VALIDATION_FAILED → stage=FAILED「一键重新触发」）终态与状态 API 一致。
+
+**浏览器实测**（Playwright）：mock 控制台与运营看板显示新数据（根因分布 FW_DEFECT:1、平均置信度 0.78、AI 完成率 25%、回调事件 PROGRESS×4/RESULT×1、会话 S-…-95959144 COMPLETED），截图 `/tmp/aitrace-walk/mock-console.png` + 无障碍快照取证。
+
+**走查插曲与裁决**：① 门禁首跑 2 个 e2e 失败（批次 180s 超时 FAILED）——根因：走查常驻服务与 e2e 共用 aitrace_test 库抢任务（门禁与走查并跑会互踩）；停掉走查服务后复跑 2 个 e2e 34.87s 全绿、`make verify` 全绿。② 裸跑（未设 TEST_DATABASE_URL）时 `test_query_returns_queued_stage` 读到 e2e 残留的 COMPLETED 会话（IngestService 按 `(product_id, batch_id, case_id)` 幂等返回既有会话，属设计行为）——测试环境残留所致，非产品缺陷；已 TRUNCATE 测试库收尾。裁决：门禁执行前必须停掉本机常驻的 AITrace/mock 演示服务（两者共用测试库）。

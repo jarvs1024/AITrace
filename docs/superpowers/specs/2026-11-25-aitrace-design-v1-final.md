@@ -1405,6 +1405,16 @@ AITrace/
 5. **审计链 JSONB 稳定性**：`audit_log.detail` 为 JSONB，浮点数会触发 `1.0→1` 归一化破坏哈希链，`AuditService.append` 拒绝浮点（中文报错），契约测试锁定。
 6. **本地开发环境**：PostgreSQL 16.16（Homebrew）、`aitrace`/`aitrace_test` 双库、`TEST_DATABASE_URL=postgresql+psycopg://aitrace:aitrace@127.0.0.1:5432/aitrace_test`；无 Docker，e2e 以本地 PG + uvicorn 子进程组织。
 
+**V1.2 实施修订（2026-11-27，M3 Feedback 实施期实测回填）**：不改任何接口与服务语义，仅回填实测结论与工程裁定：
+
+1. **通知单事件契约**：notify 任务 `payload` 为单事件对象 `{event, batch_id, product_id, …事件字段}`；高危卡不设独立事件，嵌套 `payload["high_risk"] = {keywords, detail}`（batch_card 处理时同一任务追加第二张卡）；negated 事件额外保留 `session_id`（citing 会话）供断言与排查。批次级 notify 在 `task_id` 列落占位、真实批次号经 payload 传输（满足 M0 冻结部分唯一索引）。
+2. **通知失败退避不借道 queue.retry**：notify 失败重试手动 `attempts+1`——未超限回 PENDING 并置 `next_retry_at=30·2^(n-1)`（上限 1800s），超限置 FAILED；避免 queue.retry 把非清洗任务置 READY 误暴露给 AI claim。通知配置经 aitest 查询接口获取并 TTL 缓存，不可用降级兜底群或仅落看板。
+3. **批次关账终态集合补 VALID/INVALID**：修复「已反馈批次永不关账 → final 卡片永不发送」的真实缺陷；VALID/INVALID 反馈终止的批次照常关账汇总。
+4. **SSH 只读探针落地**（lib 级组件 `src/aitrace/probe/`，暂未挂 API 路由）：双栏白名单交集——全局白名单为锚定正则（`re.fullmatch`，内置只读命令集 `nvme list/id-ctrl/smart-log/error-log`、`cxl list`、`lspci`、`smartctl -a`、`dmesg`、`df -h`、`ps -ef | grep …`）是最终安全闸；画像 `probe_whitelist` 按「命令==条目 或 条目+空格开头」前缀语义；`None`/空画像一律拒绝。DENY_PATTERNS 先行否决 reboot/shutdown、`nvme format/fw-download/fw-commit/sanitize/reset/delete/write`、rm/mkfs/dd/fdisk/parted、shell 元字符与控制字符。每次运行/拒绝/超时分别审计 `SSH_PROBE`/`SSH_PROBE_DENIED`/`SSH_PROBE_TIMEOUT`，哈希链约束不变。settings 增 `probe` 段（缺省用内置白名单，`global_whitelist: []` 语义=拒绝一切)。
+5. **引用级联范围裁定**：同批同组引用注记改写与 `CITING_STALE`；`cited_version` 语义维持 M2（版本=被引用报告轮次的重诊次数+1）。
+6. **看板 hot_memory_hit_rate 口径**：以 `use_hits/完成轮次数` 近似（缺轮次级预筛日志），仅影响看板展示。
+7. **M3 验证结果（2026-11-27）**：`make verify` 全绿——`make lint` 清洁（mypy 90 源文件）· `make test` 341 passed（cov 95.05%）· `make contract` 26 passed · `make e2e` 4 passed；系统级 fake 链真实 HTTP 走查「投递 → COMPLETED(FW_DEFECT, 0.78) → 反馈 VALID → 案例库/热记忆物化 → 看板 case_count 0→1」，NOTIFY 三卡（诊断卡/高危卡 AER/终态卡 COMPLETED）经 mock `/__mock/cards` 捕获，浏览器实测控制台与看板新数据。执行裁定详见 M3 计划 Task 7/8 实施裁决与文末执行记录。
+
 ---
 
 ## 附录 C 关键名词对照
