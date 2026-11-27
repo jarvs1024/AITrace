@@ -7,6 +7,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from aitrace.core.enums import QueueState, TaskType
+from aitrace.observability.metrics import MetricsRegistry
+from aitrace.observability.pipeline import record_stage_event
 from aitrace.persistence.base import EPOCH
 from aitrace.persistence.models import TaskQueue, TaskQueueRow, UserQueue
 from aitrace.scheduling.slot_gate import acquire_slot, release_slot
@@ -14,9 +16,29 @@ from aitrace.scheduling.types import NewTask
 
 
 class QueueRepository:
-    def __init__(self, session: Session, *, lease_seconds: int = 600) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        lease_seconds: int = 600,
+        metrics: MetricsRegistry | None = None,
+    ) -> None:
         self._session = session
         self._lease = timedelta(seconds=lease_seconds)
+        self._metrics = metrics
+
+    def _emit(
+        self, row: TaskQueueRow, from_state: str, to_state: str, entered_at: datetime, now: datetime
+    ) -> None:
+        duration = (now - entered_at).total_seconds()
+        record_stage_event(
+            self._metrics,
+            task_type=row.task_type,
+            queue_key=row.queue_key,
+            from_state=from_state,
+            to_state=to_state,
+            duration_seconds=max(duration, 0.0),
+        )
 
     def ensure_user_queue(self, queue_key: str, now: datetime) -> None:
         self._session.execute(
@@ -81,12 +103,15 @@ class QueueRepository:
         ).scalar_one_or_none()
         if row is None:
             return None
+        entered_at = row.updated_at
+        from_state = str(row.queue_state)
         row.lease_owner = owner
         row.lease_generation += 1
         row.lease_until = now + self._lease
         row.queue_state = QueueState.CLEANING
         row.updated_at = now
         self._session.flush()
+        self._emit(row, from_state, QueueState.CLEANING, entered_at, now)
         return row
 
     def claim_ai(self, owner: str, now: datetime) -> TaskQueueRow | None:
@@ -115,6 +140,8 @@ class QueueRepository:
             return None
         if not acquire_slot(self._session, row.queue_key, now):
             return None
+        entered_at = row.updated_at
+        from_state = str(row.queue_state)
         row.queue_state = QueueState.AI_RUNNING
         row.dispatch_phase = "JIT_FETCH"
         row.lease_owner = owner
@@ -122,6 +149,7 @@ class QueueRepository:
         row.lease_until = now + self._lease
         row.updated_at = now
         self._session.flush()
+        self._emit(row, from_state, QueueState.AI_RUNNING, entered_at, now)
         return row
 
     def finish(
@@ -139,6 +167,8 @@ class QueueRepository:
         if row is None or row.lease_owner != owner or row.lease_generation != generation:
             return False
         was_ai = row.queue_state == QueueState.AI_RUNNING
+        entered_at = row.updated_at
+        from_state = str(row.queue_state)
         row.queue_state = state
         row.dispatch_phase = None
         row.lease_owner = None
@@ -148,6 +178,7 @@ class QueueRepository:
         if was_ai:
             self._release_slot(row.queue_key, now)
         self._session.flush()
+        self._emit(row, from_state, state, entered_at, now)
         return True
 
     def retry(
@@ -164,6 +195,8 @@ class QueueRepository:
         if row.lease_owner != owner or row.lease_generation != generation:
             raise ValueError("租约已被回收，重试写入被 fencing 拒绝")
         was_ai = row.queue_state == QueueState.AI_RUNNING
+        entered_at = row.updated_at
+        from_state = str(row.queue_state)
         row.attempts += 1
         row.error = error
         row.lease_owner = None
@@ -181,6 +214,7 @@ class QueueRepository:
             delay = min(30 * (2 ** (row.attempts - 1)), 1800)
             row.next_retry_at = now + timedelta(seconds=delay)
         self._session.flush()
+        self._emit(row, from_state, QueueState(str(row.queue_state)), entered_at, now)
         return QueueState(row.queue_state)
 
     def reclaim_confirmed(self, task_id: str, owner: str, generation: int, now: datetime) -> bool:
@@ -198,6 +232,7 @@ class QueueRepository:
             or row.lease_until >= now
         ):
             return False
+        entered_at = row.updated_at
         row.queue_state = QueueState.READY
         row.dispatch_phase = None
         row.lease_owner = None
@@ -205,6 +240,7 @@ class QueueRepository:
         row.updated_at = now
         self._release_slot(row.queue_key, now)
         self._session.flush()
+        self._emit(row, QueueState.AI_RUNNING, QueueState.READY, entered_at, now)
         return True
 
     def _release_slot(self, queue_key: str, now: datetime) -> None:
@@ -263,6 +299,8 @@ class QueueRepository:
         ).scalar_one()
         if row.lease_owner != owner or row.lease_generation != generation:
             raise ValueError("租约已被回收，重试写入被 fencing 拒绝")
+        entered_at = row.updated_at
+        from_state = str(row.queue_state)
         row.attempts += 1
         row.error = error
         row.lease_owner = None
@@ -276,4 +314,5 @@ class QueueRepository:
             delay = min(30 * (2 ** (row.attempts - 1)), 1800)
             row.next_retry_at = now + timedelta(seconds=delay)
         self._session.flush()
+        self._emit(row, from_state, QueueState(str(row.queue_state)), entered_at, now)
         return QueueState(row.queue_state)

@@ -79,6 +79,33 @@ _FIELD_LABELS = {
     "probe.global_whitelist": "探针全局白名单",
     "probe.connect_timeout_seconds": "探针连接超时",
     "probe.command_timeout_seconds": "探针命令超时",
+    "slo": "SLO 标定参数",
+    "slo.ai_p95_baseline_seconds": "AI 任务 P95 基线（D）",
+    "slo.queue_to_clean_p95_seconds": "排队转清洗 P95 目标",
+    "slo.e2e_first_case_p95_seconds": "首例端到端 P95 目标",
+    "slo.e2e_queued_case_p95_seconds": "有前序积压用例端到端 P95 目标",
+    "slo.e2e_batch_p95_seconds": "批次全任务 P95 目标",
+    "slo.fairness_max_gap_seconds": "跨用户公平性最大等待差",
+    "slo.probe_max_age_minutes": "探针时效上限",
+    "monitor": "监控配置",
+    "monitor.enabled": "监控巡检开关",
+    "monitor.check_interval_seconds": "巡检周期",
+    "monitor.global_depth_warn_fraction": "全局队列深度告警比例",
+    "monitor.per_token_depth_warn": "单令牌队列深度告警值",
+    "monitor.paused_auth_warn_seconds": "PAUSED_AUTH 持续告警时长",
+    "monitor.token_fetch_fail_rate": "令牌拉取失败率告警阈值",
+    "monitor.callback_fail_rate": "回调失败率告警阈值",
+    "monitor.callback_backlog_seconds": "回调待发送积压告警时长",
+    "monitor.fencing_reject_warn_seconds": "fencing 拒绝持续告警时长",
+    "monitor.worker_util_low": "Worker 利用率下限",
+    "monitor.worker_util_high": "Worker 利用率上限",
+    "monitor.ops_webhook": "运维告警群 webhook",
+    "backup": "备份配置",
+    "backup.staging_dir": "备份暂存目录",
+    "backup.keep_count": "备份保留数",
+    "backup.remote_dest": "异盘/异地推送目标",
+    "backup.min_free_bytes": "备份前最小可用空间",
+    "release_root": "发布根目录",
 }
 
 
@@ -156,6 +183,47 @@ class ProbeSettings(BaseModel):
     command_timeout_seconds: int = Field(default=10, ge=1, le=300)
 
 
+class SloSettings(BaseModel):
+    """spec §7.1 阶段二 SLO 初始参考值；M4 标定后回填收敛值。"""
+
+    model_config = ConfigDict(extra="forbid")
+    ai_p95_baseline_seconds: int = Field(default=360, ge=60)
+    queue_to_clean_p95_seconds: int = Field(default=120, ge=10)
+    e2e_first_case_p95_seconds: int = Field(default=900, ge=60)
+    e2e_queued_case_p95_seconds: int = Field(default=2700, ge=60)
+    e2e_batch_p95_seconds: int = Field(default=3600, ge=60)
+    fairness_max_gap_seconds: int = Field(default=720, ge=60)
+    probe_max_age_minutes: int = Field(default=30, ge=1)
+
+
+class MonitorSettings(BaseModel):
+    """spec §7.3 告警阈值（本地可判定项）。"""
+
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = True
+    check_interval_seconds: float = Field(default=60.0, ge=5.0, le=3600)
+    global_depth_warn_fraction: float = Field(default=0.8, gt=0, le=1)
+    per_token_depth_warn: int = Field(default=100, ge=1)
+    paused_auth_warn_seconds: int = Field(default=600, ge=60)
+    token_fetch_fail_rate: float = Field(default=0.10, gt=0, le=1)
+    callback_fail_rate: float = Field(default=0.05, gt=0, le=1)
+    callback_backlog_seconds: int = Field(default=600, ge=60)
+    fencing_reject_warn_seconds: int = Field(default=600, ge=60)
+    worker_util_low: float = Field(default=0.50, ge=0, le=1)
+    worker_util_high: float = Field(default=0.90, ge=0, le=1)
+    ops_webhook: str | None = None
+
+
+class BackupSettings(BaseModel):
+    """spec §8.6 备份策略。"""
+
+    model_config = ConfigDict(extra="forbid")
+    staging_dir: Path = Path("data/backups")
+    keep_count: int = Field(default=3, ge=1)
+    remote_dest: str | None = None
+    min_free_bytes: int = Field(default=4 * 1024**3, ge=0)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="AITRACE_",
@@ -175,6 +243,10 @@ class Settings(BaseSettings):
     aitest: AitestSettings = Field(default_factory=AitestSettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     probe: ProbeSettings = Field(default_factory=ProbeSettings)
+    slo: SloSettings = Field(default_factory=SloSettings)
+    monitor: MonitorSettings = Field(default_factory=MonitorSettings)
+    backup: BackupSettings = Field(default_factory=BackupSettings)
+    release_root: Path | None = None
 
     @model_validator(mode="after")
     def _resolve_secret_files(self) -> Self:
@@ -236,6 +308,9 @@ _SECTION_MODELS: dict[str, type[BaseModel]] = {
     "aitest": AitestSettings,
     "runtime": RuntimeSettings,
     "probe": ProbeSettings,
+    "slo": SloSettings,
+    "monitor": MonitorSettings,
+    "backup": BackupSettings,
 }
 
 

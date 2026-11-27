@@ -5,7 +5,9 @@ import aitrace.main as main
 
 
 def test_run_starts_uvicorn_with_app_and_settings() -> None:
-    settings = SimpleNamespace(server=SimpleNamespace(host="127.0.0.1", port=8080))
+    settings = SimpleNamespace(
+        server=SimpleNamespace(host="127.0.0.1", port=8080, log_level="INFO")
+    )
     app = SimpleNamespace(state=SimpleNamespace(settings=settings))
     with (
         patch.object(main, "create_app", return_value=app),
