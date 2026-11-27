@@ -144,6 +144,17 @@ class AttachmentUploadResponse(_StrictModel):
     sha256: str
 
 
+class DashboardSummaryResponse(_StrictModel):
+    generated_at: str
+    product_id: str | None
+    overview: dict[str, Any]
+    by_product: list[dict[str, Any]]
+    root_cause_distribution: dict[str, int]
+    knowledge: dict[str, Any]
+    runtime: dict[str, Any]
+    confidence_histogram: dict[str, int]
+
+
 _ROOT_CAUSE_CATEGORIES = Literal[
     "TEST_ENV_ERROR", "FW_DEFECT", "SCRIPT_ISSUE", "HW_DEFECT", "OTHER"
 ]

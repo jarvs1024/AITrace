@@ -170,6 +170,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aitrace/dashboard/summary:
+    get:
+      tags:
+      - dashboard
+      summary: Dashboard Summary
+      operationId: dashboard_summary_api_v1_aitrace_dashboard_summary_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummaryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/aitrace/feedback:
     post:
       tags:
@@ -236,6 +266,56 @@ components:
       - uploaded_by
       - file
       title: Body_upload_attachment_api_v1_aitrace_sessions__session_id__attachments_post
+    DashboardSummaryResponse:
+      properties:
+        generated_at:
+          type: string
+          title: Generated At
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        overview:
+          additionalProperties: true
+          type: object
+          title: Overview
+        by_product:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: By Product
+        root_cause_distribution:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Root Cause Distribution
+        knowledge:
+          additionalProperties: true
+          type: object
+          title: Knowledge
+        runtime:
+          additionalProperties: true
+          type: object
+          title: Runtime
+        confidence_histogram:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Confidence Histogram
+      additionalProperties: false
+      type: object
+      required:
+      - generated_at
+      - product_id
+      - overview
+      - by_product
+      - root_cause_distribution
+      - knowledge
+      - runtime
+      - confidence_histogram
+      title: DashboardSummaryResponse
     DeliveryPayload:
       properties:
         product_id:
