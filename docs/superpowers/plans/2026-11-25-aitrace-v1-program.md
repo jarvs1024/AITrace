@@ -33,7 +33,7 @@ The V1 spec contains five independently testable subsystems. A single monolithic
 | M1 Cleaning | Written at M1 kickoff | Ingest → deterministic cleaning → rule report; batch aggregation and knowledge tables | Stage-1 golden logs and first-error/slice/fingerprint tests pass |
 | M2 AI | [2026-11-26-aitrace-m2-ai.md](2026-11-26-aitrace-m2-ai.md) | Clean → per-token queue → JIT token → Qoder main/sub-agent → confidence → result/callback | Fake-Qoder e2e covers success, token missing/expired, pause/recover, fencing |
 | M3 Feedback | [2026-11-27-aitrace-m3-feedback.md](2026-11-27-aitrace-m3-feedback.md) | Notifications, two-state feedback, contribution ledger, hot memory, citation cascade, dashboards | Feedback→knowledge→dashboard e2e; citation cascade tests |
-| M4 SLO/Ops | Written at M4 kickoff | Metrics/alerts, watermarks, backup/restore, SLO calibration harness, full release scripts | RPO/RTO drill, rollback drill, calibration report |
+| M4 SLO/Ops | [2026-11-27-aitrace-m4-slo-ops.md](2026-11-27-aitrace-m4-slo-ops.md) | Metrics/alerts, watermarks, backup/restore, SLO calibration harness, full release scripts | RPO/RTO drill, rollback drill, calibration report |
 | M5 Hardening | Written at M5 kickoff | Security/perf regression, gray release, runbooks | Red-team, perf, contract regression, compliance gate |
 
 This is intentional: detailed plan files are created immediately before their milestone so interfaces proven in the previous milestone are reflected, instead of freezing unvalidated code for eight weeks.
@@ -46,7 +46,7 @@ This is intentional: detailed plan files are created immediately before their mi
 | M1 Cleaning | **DONE 2026-11-26** | `make lint` clean · `make test` 154 passed（cov 95.93%）· `make contract` 14 passed · `make e2e` 2 passed；迁移 0002（batch.gate）升降级实测通过。执行裁定见 [2026-11-26-aitrace-m1-cleaning.md](2026-11-26-aitrace-m1-cleaning.md) 尾部执行记录。 |
 | M2 AI | **DONE 2026-11-26** | `make verify` 全绿（`make lint` 141 文件 / mypy 75 源文件 · `make test` 238 passed（cov 95.28%）· `make contract` 17 passed · `make e2e` 2+2 passed）；迁移 0002↔0005 全链双向升降级实测通过；Fake-Qoder 全链（deliver→clean→route→AI→release→callback→batch_close）与令牌缺失/过期暂停恢复链 e2e 归绿；令牌红线审计通过。端到端系统级验证（真实 HTTP）：Fake 版正向全链批次 COMPLETED + RESULT 回调 + 状态 API 完整报告；真实 SDK（cn + GLM-5.3-Flash）负向全链批次 FAILED、状态 API stage=FAILED；修复轮 R2 收敛 D1/D2/D3 状态语义缺陷（详见 M2 计划文末「端到端验证记录」）。执行裁定见 [2026-11-26-aitrace-m2-ai.md](2026-11-26-aitrace-m2-ai.md) 文末执行记录。真实模型（GLM-5.3-Flash）验证需有效 CN 令牌：实施期提供的令牌 2026-11-26 三次独立实测均 401 TOKEN_INVALID（invalid pt-token）。 |
 | M3 Feedback | **DONE 2026-11-27** | `make verify` 全绿（`make lint` 清洁（mypy 90 源文件）· `make test` 341 passed（cov 95.05%）· `make contract` 26 passed · `make e2e` 4 passed）；M3 无新增 schema 迁移（沿用 0001–0005）；系统级 fake 链真实 HTTP 走查「投递 → COMPLETED(FW_DEFECT, 0.78) → 反馈 VALID → 案例库/热记忆物化 → 看板 case_count 0→1」，NOTIFY 三卡（诊断/高危 AER/终态 COMPLETED）经 mock `/__mock/cards` 捕获，浏览器实测控制台与看板新数据（Playwright 截图/快照取证）；SSH 只读探针 31 例安全测试先行全绿（白名单交集/拒绝审计/哈希链 verify）。执行裁定见 [2026-11-27-aitrace-m3-feedback.md](2026-11-27-aitrace-m3-feedback.md) Task 7/8 实施裁决及文末执行记录，spec 附录 B「V1.2 实施修订（2026-11-27）」同步回填。 |
-| M4 SLO/Ops | kickoff pending | — |
+| M4 SLO/Ops | [2026-11-27-aitrace-m4-slo-ops.md](2026-11-27-aitrace-m4-slo-ops.md) | `make verify` + `make test-security` + `make ops` + `make perf` 全绿；备份演练 RPO/RTO、发布回滚烟测、SLO 标定基线回填 |
 | M5 Hardening | kickoff pending | — |
 
 ## Cross-Milestone Interfaces
