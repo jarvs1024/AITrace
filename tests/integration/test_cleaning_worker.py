@@ -89,7 +89,10 @@ def test_rule_hit_flow_writes_report_and_finishes_done(db_session, tmp_path: Pat
     handled = _worker(db_session, tmp_path, now)
     assert handled == 1
     task = db_session.execute(
-        select(TaskQueue).where(TaskQueue.session_id == session_id)
+        select(TaskQueue).where(
+            TaskQueue.session_id == session_id,
+            TaskQueue.task_type == "case_clean",
+        )
     ).scalar_one()
     assert task.queue_state == QueueState.DONE.value
     round_row = db_session.execute(select(Round).where(Round.session_id == session_id)).scalar_one()
@@ -98,6 +101,47 @@ def test_rule_hit_flow_writes_report_and_finishes_done(db_session, tmp_path: Pat
     report = db_session.get(Report, round_row.report_id)
     assert report.result["root_cause"]["category"] == "TEST_ENV_ERROR"
     assert report.citation == {"citing_status": "NONE"}
+
+
+def test_rule_hit_flow_emits_result_callback_and_notify(db_session, tmp_path: Path) -> None:
+    # 规格 §4.5.4：终态结果必发——规则命中轮次同样必须产生 RESULT 回调与案例通知
+    for name in ("test", "uart", "dmesg", "scheduler"):
+        (tmp_path / f"{name}.txt").write_text(load_golden(name), encoding="utf-8")
+    session_id = _setup(db_session, tmp_path)
+    now = datetime(2026, 11, 26, 8, 0, 0, tzinfo=UTC)
+    handled = _worker(db_session, tmp_path, now)
+    assert handled == 1
+    callbacks = (
+        db_session.execute(
+            select(TaskQueue).where(
+                TaskQueue.session_id == session_id,
+                TaskQueue.task_type == "callback",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    result_payloads = [c.payload for c in callbacks if c.payload.get("event") == "RESULT"]
+    assert len(result_payloads) == 1
+    payload = result_payloads[0]
+    assert payload["report"]["root_cause"]["category"] == "TEST_ENV_ERROR"
+    assert payload["report"]["confidence"] is None
+    assert payload["citation"] == {"citing_status": "NONE"}
+    assert payload["stage"] == "COMPLETED"
+    assert payload["progress"] == 100
+    notifies = (
+        db_session.execute(
+            select(TaskQueue).where(
+                TaskQueue.session_id == session_id,
+                TaskQueue.task_type == "notify",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(notifies) == 1
+    assert notifies[0].payload["event"] == "batch_card"
+    assert notifies[0].payload["category"] == "TEST_ENV_ERROR"
 
 
 def test_ready_flow_finishes_ready_without_report(db_session, tmp_path: Path) -> None:

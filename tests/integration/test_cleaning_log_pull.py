@@ -124,7 +124,10 @@ def test_pull_missing_logs_from_aitest_then_clean(db_session, tmp_path: Path) ->
     handled = _worker(db_session, tmp_path, now, _pull_client(sources))
     assert handled == 1
     task = db_session.execute(
-        select(TaskQueue).where(TaskQueue.session_id == session_id)
+        select(TaskQueue).where(
+            TaskQueue.session_id == session_id,
+            TaskQueue.task_type == "case_clean",
+        )
     ).scalar_one()
     assert task.queue_state == QueueState.DONE.value
     round_row = db_session.execute(select(Round).where(Round.session_id == session_id)).scalar_one()
@@ -152,7 +155,10 @@ def test_pull_single_source_missing_marks_gap_not_fail(db_session, tmp_path: Pat
     handled = _worker(db_session, tmp_path, now, _pull_client(sources))
     assert handled == 1
     task = db_session.execute(
-        select(TaskQueue).where(TaskQueue.session_id == session_id)
+        select(TaskQueue).where(
+            TaskQueue.session_id == session_id,
+            TaskQueue.task_type == "case_clean",
+        )
     ).scalar_one()
     assert task.queue_state == QueueState.READY.value
     errors = (task.payload or {}).get("log_pull_errors", {})

@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from aitrace.callback.enqueue import enqueue_result
 from aitrace.cleaning.artifacts import ArtifactWriter
 from aitrace.cleaning.pipeline import PipelineOutcome, run_pipeline
 from aitrace.cleaning.registry import CleaningRegistry
@@ -13,6 +14,7 @@ from aitrace.cleaning.rules import RuleSet
 from aitrace.core.enums import QueueState, Stage
 from aitrace.core.ids import SystemClock, UuidIdGenerator
 from aitrace.ingest.log_client import LogClient, LogFetchError
+from aitrace.notify.enqueue import enqueue_case_notify
 from aitrace.persistence.models import Report, Round, SessionModel, TaskQueue
 from aitrace.persistence.repositories.queue import QueueRepository
 
@@ -184,6 +186,38 @@ class CleaningWorker:
                 task.lease_generation,
                 QueueState.DONE,
                 now,
+            )
+            enqueue_result(
+                session,
+                self._queue,
+                ids,
+                task=task,
+                report_payload={
+                    "root_cause": {
+                        "category": (
+                            outcome.rule_hit.category if outcome.rule_hit else "TEST_ENV_ERROR"
+                        ),
+                        "detail": outcome.rule_hit.detail if outcome.rule_hit else "",
+                        "evidence": [],
+                    },
+                    "solution": None,
+                    "confidence": None,
+                    "gap_note": None,
+                },
+                citation={"citing_status": "NONE"},
+                now=now,
+            )
+            enqueue_case_notify(
+                session,
+                self._queue,
+                ids,
+                session_row=session_row,
+                round_id=round_row.round_id,
+                round_no=round_row.round_no,
+                category=(outcome.rule_hit.category if outcome.rule_hit else "TEST_ENV_ERROR"),
+                detail=outcome.rule_hit.detail if outcome.rule_hit else "",
+                confidence=None,
+                now=now,
             )
             return "rule_hit"
         round_row.finished_at = now

@@ -121,7 +121,7 @@ const FEEDBACK_LABELS = {
   RUNNING: "分析中",
 };
 const QUEUE_LABELS = {
-  PENDING: "待清洗",
+  PENDING: "排队中",
   CLEANING: "清洗中",
   READY: "待路由",
   AI_RUNNING: "AI 分析中",
@@ -160,6 +160,7 @@ async function api(path, options) {
       typeof body === "string" ? body : JSON.stringify(body, null, 2));
     throw new Error("HTTP " + response.status);
   }
+  $("errors").textContent = "（无）";
   return body;
 }
 
@@ -422,6 +423,11 @@ function toggleCorrectionForm(zone, session, status) {
     const warn = form.querySelector("#correction-warn");
     if (category && !reason) {
       warn.textContent = "选择修正分类时必须填写修正说明";
+      warn.className = "warn-text";
+      return;
+    }
+    if (!category && reason) {
+      warn.textContent = "填写修正说明时请同时选择正确根因分类，否则说明不会被保存";
       warn.className = "warn-text";
       return;
     }

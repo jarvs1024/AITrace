@@ -68,6 +68,7 @@ def _release_one(
         if elapsed > settings.waiting_timeout_seconds:
             _rule_other(
                 session,
+                queue,
                 ids,
                 task,
                 now,
@@ -96,7 +97,14 @@ def _release_one(
         if batch is not None:
             batch.gate = {**(batch.gate or {}), "ai_used": ai_used + 1}
         return _promote(session, task, now)
-    _rule_other(session, ids, task, now, "批内 AI 预算已耗尽且首例结论未达引用门槛，转人工复核")
+    _rule_other(
+        session,
+        queue,
+        ids,
+        task,
+        now,
+        "批内 AI 预算已耗尽且首例结论未达引用门槛，转人工复核",
+    )
     return True
 
 
@@ -217,7 +225,14 @@ def _cite(
     return True
 
 
-def _rule_other(session: Session, ids: Any, task: TaskQueue, now: datetime, detail: str) -> None:
+def _rule_other(
+    session: Session,
+    queue: QueueRepository,
+    ids: Any,
+    task: TaskQueue,
+    now: datetime,
+    detail: str,
+) -> None:
     round_row = session.execute(select(Round).where(Round.round_id == task.round_id)).scalar_one()
     session_row = session.get(SessionModel, task.session_id)
     if session_row is None:
@@ -246,4 +261,19 @@ def _rule_other(session: Session, ids: Any, task: TaskQueue, now: datetime, deta
         detail=detail,
         referenced_logs=[],
         gap_note=detail,
+    )
+    # 规格 §4.5.4：终态结果必发——规则转人工路径同样必须回传 RESULT
+    enqueue_result(
+        session,
+        queue,
+        ids,
+        task=task,
+        report_payload={
+            "root_cause": {"category": "OTHER", "detail": detail, "evidence": []},
+            "solution": None,
+            "confidence": None,
+            "gap_note": detail,
+        },
+        citation={"citing_status": "NONE"},
+        now=now,
     )
