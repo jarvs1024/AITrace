@@ -1574,7 +1574,7 @@ git push
 | Task 4: JIT 拉取审计 | ✅ 完成 | RED：`AIWorker.__init__` 拒收 `audit`（TypeError）→ 实现后 `tests/security/test_redteam_token.py` 3 passed（恶意令牌体 detail/text 零泄漏、失败记 code/retryable、投递 payload 哨兵不进应用日志与审计）+ e2e 4 passed | 6e08115 |
 | Task 5: 注入与探针红队 | ✅ 完成 | `test_redteam_injection.py` 7 passed + `test_redteam_probe.py` 9 passed（首轮 15/16——修复两处测试侧缺陷后 16/16，见下方裁决 A/B）；纯测试无 src 变更 | d0f754b |
 | Task 6: 运维手册 + R1 报告 | ✅ 完成 | 6 份文档落盘（runbooks 01–05 + r1-compliance-assessment.md）；内容全部以已验证事实编写，无占位符；R1 gate 结论：条件放行（探针运行时接线与阶段一真实标定完成前不得对真实被测日志启用探针类分析） | c0d0375 |
-| Task 7: 全量回归 + 回写 | ✅ 完成 | `make verify`：486 passed / 2 skipped（cov 94.40%）+ contract 26 + e2e 4；`make test-security`（带 TEST_DATABASE_URL）：97 passed / 0 skipped（203 deselected）；`make ops`：20 passed（含 2 项真实 pg_dump/pg_restore 演练）；`make perf --out /tmp/perf_report_m5.json`：三 profile 全 PASS（backpressure 投递 20 / 受理 10 / 429×10，retry_after P95 60s）；`make lint` 零告警（mypy 103 源文件）。spec 附录 B「V1.3 实施修订」7 条、program plan M5 DONE、README M5 段已回写 | （随收口提交） |
+| Task 7: 全量回归 + 回写 | ✅ 完成 | `make verify`：486 passed / 2 skipped（cov 94.40%）+ contract 26 + e2e 4；`make test-security`（带 TEST_DATABASE_URL）：97 passed / 0 skipped（203 deselected）；`make ops`：20 passed（含 2 项真实 pg_dump/pg_restore 演练）；`make perf --out /tmp/perf_report_m5.json`：三 profile 全 PASS（backpressure 投递 20 / 受理 10 / 429×10，retry_after P95 60s）；`make lint` 零告警（mypy 103 源文件）。spec 附录 B「V1.3 实施修订」7 条、program plan M5 DONE、README M5 段已回写 | 0701b7f |
 
 ### 执行期裁决（预检 6 条之外的新增）
 
