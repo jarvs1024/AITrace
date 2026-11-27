@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from sqlalchemy import create_engine
@@ -26,7 +27,14 @@ from aitrace.cleaning.registry import CleaningRegistry
 from aitrace.core.audit import AuditService
 from aitrace.core.ids import SystemClock, UuidIdGenerator
 from aitrace.core.settings import Settings, load_settings
+from aitrace.observability.alerts import (
+    dingtalk_text_poster,
+    evaluate_alerts,
+    next_alert_state,
+    send_alerts,
+)
 from aitrace.observability.metrics import MetricsRegistry
+from aitrace.observability.monitor import build_monitor_snapshot
 from aitrace.profiles.loader import load_profiles
 from aitrace.profiles.resolver import ProfileResolver
 from aitrace.runtime.dispatcher import (
@@ -67,17 +75,56 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 logger.exception("调度循环异常，本 tick 已随会话关闭回滚")
             stop_event.wait(max(settings.runtime.tick_seconds - (time.monotonic() - started), 0.1))
 
+    monitor_stop = threading.Event()
+
+    def _monitor_loop() -> None:
+        alert_state: dict[str, Any] = {}
+        while not monitor_stop.is_set():
+            started = time.monotonic()
+            try:
+                with session_factory() as session:
+                    snapshot = build_monitor_snapshot(
+                        session,
+                        app.state.metrics,
+                        settings,
+                        now=app.state.clock.now(),
+                        audit=app.state.audit,
+                    )
+                app.state.audit_failed = snapshot["audit"]["verified"] is False
+                now = app.state.clock.now()
+                alerts = evaluate_alerts(snapshot, settings, now=now, prev_state=alert_state)
+                alert_state = next_alert_state(snapshot, alert_state, now)
+                send_alerts(
+                    alerts,
+                    ops_webhook=settings.monitor.ops_webhook,
+                    poster=dingtalk_text_poster,
+                )
+            except Exception:
+                logger.exception("监控巡检异常，本轮跳过（线程保持存活）")
+            monitor_stop.wait(
+                max(settings.monitor.check_interval_seconds - (time.monotonic() - started), 0.1)
+            )
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         loop_thread: threading.Thread | None = None
+        monitor_thread: threading.Thread | None = None
         if settings.runtime.enabled:
             loop_thread = threading.Thread(
                 target=_dispatch_loop, name="aitrace-dispatcher", daemon=True
             )
             loop_thread.start()
+        if settings.monitor.enabled:
+            monitor_thread = threading.Thread(
+                target=_monitor_loop, name="aitrace-monitor", daemon=True
+            )
+            monitor_thread.start()
         try:
             yield
         finally:
+            if monitor_thread is not None:
+                monitor_stop.set()
+                monitor_thread.join(timeout=10)
             if loop_thread is not None:
                 stop_event.set()
                 loop_thread.join(timeout=10)
@@ -98,7 +145,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.ids = UuidIdGenerator()
     app.state.profile_resolver = ProfileResolver(registry)
     app.state.metrics = MetricsRegistry()
-    app.state.audit = AuditService(session_factory)
+    app.state.audit_failed = False
+    app.state.audit = AuditService(
+        session_factory, blocked=lambda: bool(getattr(app.state, "audit_failed", False))
+    )
     if settings.runtime.enabled:
         app.state.cutoff_rules = build_cutoff_rules(settings)
         app.state.cleaning_registry = CleaningRegistry()

@@ -727,6 +727,14 @@ git push
 | T1 观测底座 | commit 44f2ded；`make verify` 全绿（当时 362 通过）；tests/unit/test_observability.py 15 用例含令牌掩码、直方图最近秩、阶段事件双落（指标+日志） |
 | T2 水位+背压 | commit（见本轮提交）；tests/unit/test_watermark.py 8 用例 + tests/integration/test_backpressure.py 4 用例全绿；`make verify`：368 passed + 26 contract + 4 e2e，coverage 94.98%；实测 429 QUEUE_FULL（全局深度 5、单令牌深度 1，retry_after=60）、507 DISK_FULL（quota 1000B/占用 900B）；WARN 档（70%）触发仅清 TTL、FORCE 档按 未评价→无效→有效 顺序淘汰且不碰 RUNNING 批次 |
 | T3 监控快照 | commit（见本轮提交）；新增 tests/unit/test_monitor.py 8 用例 + tests/integration/test_monitor_api.py 4 用例全绿；`make verify`：lint 全过、380 passed + 26 contract + 4 e2e，coverage 94.81%；`GET /api/v1/aitrace/monitor` 401/403 守卫生效、200 返回 9 键快照（default 库全零）；dashboard summary 增 monitoring 段；契约 diff 为纯新增（76 行增 0 删）；快照仅含计数/耗时/比例，无令牌等敏感值（测试逐键断言） |
+| T4 告警触达 | commit（见本轮提交）；tests/unit/test_alerts.py 20 用例 + tests/unit/test_audit_blocked.py 5 用例全绿；`make verify`：lint 全过、405 passed + 26 contract + 4 e2e，coverage 94.89%；告警判定覆盖全局/单令牌深度、PAUSED_AUTH 持续、令牌失败率、回调失败率/积压、热记忆物化失败、WAITING 超时、worker util 低/高、水位 WARN/FORCE、审计链断裂、fencing 持续；append 熔断抛 AUDIT_CHAIN_BROKEN（503）且不落库；verify_chain 60s 缓存经断链行验证缓存命中与过期后检出 |
+
+裁决记录（T4）：
+- fencing「持续」跨巡检周期无快照内状态可依，采用 `prev_state` + `next_alert_state` 双函数：evaluate 保持纯函数签名（计划测试形参不动），线程持状态推进；增长停一周期即重置起点。
+- worker util 低告警仅在 PENDING+READY>0 时触发，避免夜间空闲满载误报风暴（高 util 无条件触发）。
+- 水位阈值取自 storage 配置（warn/force fraction），比例读快照 watermark 段；alerts_eligible 只带等级。
+- 生产侧熔断注入走 AuditService 构造参数（app 以闭包读 app.state.audit_failed），append 参数优先于构造参数（调用点覆盖）。
+- audit_log 有 append-only 触发器，篡改模拟改用插入断链行（UPDATE 被 DB 拒绝，恰证护栏生效）。
 
 裁决记录（T3）：
 - 等待分桶 0 值桶与无数据桶同样返回空映射而非省略，保证 9 键结构稳定（前端免判空）。
