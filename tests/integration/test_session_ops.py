@@ -103,6 +103,41 @@ def test_rediagnose_creates_new_round_with_hint_and_operator(
             assert task[3] is not None  # 原清洗 payload（日志路径等）随轮次透传
 
 
+def test_rediagnose_survives_in_place_clean_row_conversion(
+    test_settings: Settings, db_engine: Engine
+) -> None:
+    # 首例路由会把 READY 的 case_clean 行原地转成 case_ai（router 既有模式），
+    # 重诊必须仍能从该行取回清洗 payload（日志路径等），否则新轮次 NO_LOGS。
+    _isolate(db_engine)
+    with TestClient(create_app(test_settings)) as client:
+        session_id = _deliver(client)
+        _finish_latest_round(db_engine, session_id)
+        with db_engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE task_queue SET task_type='case_ai' WHERE session_id=:sid AND round_no=1"
+                ),
+                {"sid": session_id},
+            )
+        rediagnose = client.post(
+            f"/api/v1/aitrace/sessions/{session_id}/rediagnose",
+            json={"trigger_user_id": "lisi", "hint": "结合新内核日志"},
+            headers=HEADERS,
+        )
+        assert rediagnose.status_code == 200
+        assert rediagnose.json()["round_no"] == 2
+        with db_engine.connect() as conn:
+            payload = conn.execute(
+                text(
+                    "SELECT payload->>'logs', payload->>'hint' FROM task_queue "
+                    "WHERE session_id=:sid AND round_no=2 AND task_type='case_clean'"
+                ),
+                {"sid": session_id},
+            ).one()
+    assert payload[0] is not None  # 原清洗 payload（日志路径等）随轮次透传
+    assert payload[1] == "结合新内核日志"
+
+
 def test_rediagnose_running_session_returns_409(test_settings: Settings, db_engine: Engine) -> None:
     _isolate(db_engine)
     with TestClient(create_app(test_settings)) as client:

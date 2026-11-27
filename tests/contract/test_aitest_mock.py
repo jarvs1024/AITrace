@@ -239,6 +239,102 @@ def test_index_serves_demo_page() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert 'id="deliver-btn"' in response.text
+    assert 'id="product-filter"' in response.text
+    assert "/api/v1/aitest/aitrace/feedback" in response.text
+    assert "/rediagnose" in response.text
+
+
+# --- 六大看板、两态反馈与重诊代理（spec FR6/FR7/FR9：aitest 平台页同源呈现） ---
+
+
+def test_dashboard_proxy_passes_product_filter(monkeypatch: Any) -> None:
+    def handler(request: httpx.Request, captured: dict[str, Any]) -> httpx.Response:
+        return httpx.Response(200, json={"overview": {"session_count": 3}})
+
+    captured = _install_aitrace_stub(monkeypatch, handler)
+    with TestClient(app) as client:
+        client.get("/api/v1/aitest/aitrace/dashboard", headers=READ)
+        filtered = client.get(
+            "/api/v1/aitest/aitrace/dashboard", params={"product_id": "ssd_9560"}, headers=READ
+        )
+    assert filtered.status_code == 200
+    assert filtered.json()["overview"]["session_count"] == 3
+    assert (
+        captured["url"]
+        == "http://127.0.0.1:8001/api/v1/aitrace/dashboard/summary?product_id=ssd_9560"
+    )
+    assert captured["authorization"] == "Bearer dev-service-token"
+
+
+def test_dashboard_proxy_requires_read_token(monkeypatch: Any) -> None:
+    def handler(request: httpx.Request, captured: dict[str, Any]) -> httpx.Response:
+        raise AssertionError("令牌无效时不应触达知因")
+
+    _install_aitrace_stub(monkeypatch, handler)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/aitest/aitrace/dashboard")
+    assert response.status_code == 403
+
+
+def test_feedback_proxy_forwards_body_and_bearer(monkeypatch: Any) -> None:
+    def handler(request: httpx.Request, captured: dict[str, Any]) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "feedback_id": "F1",
+                "session_id": "S1",
+                "round_no": 1,
+                "version": 1,
+                "status": "applied",
+            },
+        )
+
+    captured = _install_aitrace_stub(monkeypatch, handler)
+    body = {
+        "session_id": "S1",
+        "batch_id": "BATCH-20261120-0089",
+        "case_id": "CASE-1021",
+        "reviewer": "zhangsan",
+        "action": "INVALID",
+        "correction": {"root_cause_category": "TEST_ENV_ERROR", "reason": "环境拓扑不符"},
+    }
+    with TestClient(app) as client:
+        response = client.post("/api/v1/aitest/aitrace/feedback", json=body, headers=READ)
+    assert response.status_code == 200
+    assert response.json()["status"] == "applied"
+    assert captured["url"] == "http://127.0.0.1:8001/api/v1/aitrace/feedback"
+    assert captured["authorization"] == "Bearer dev-service-token"
+    assert captured["body"] == body
+
+
+def test_feedback_proxy_requires_read_token(monkeypatch: Any) -> None:
+    def handler(request: httpx.Request, captured: dict[str, Any]) -> httpx.Response:
+        raise AssertionError("令牌无效时不应触达知因")
+
+    _install_aitrace_stub(monkeypatch, handler)
+    with TestClient(app) as client:
+        response = client.post("/api/v1/aitest/aitrace/feedback", json={"action": "VALID"})
+    assert response.status_code == 403
+
+
+def test_rediagnose_proxy_forwards_hint(monkeypatch: Any) -> None:
+    def handler(request: httpx.Request, captured: dict[str, Any]) -> httpx.Response:
+        return httpx.Response(
+            200, json={"session_id": "S1", "round_no": 2, "round_id": "R2", "task_id": "T2"}
+        )
+
+    captured = _install_aitrace_stub(monkeypatch, handler)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/aitest/aitrace/sessions/S1/rediagnose",
+            json={"trigger_user_id": "zhangsan", "hint": "已补传内核日志"},
+            headers=READ,
+        )
+    assert response.status_code == 200
+    assert response.json()["round_no"] == 2
+    assert captured["url"] == "http://127.0.0.1:8001/api/v1/aitrace/sessions/S1/rediagnose"
+    assert captured["authorization"] == "Bearer dev-service-token"
+    assert captured["body"]["hint"] == "已补传内核日志"
 
 
 # --- 运营看板聚合（/__mock/stats）与投递记录、reset 清理 ---

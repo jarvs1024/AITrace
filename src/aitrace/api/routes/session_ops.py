@@ -87,7 +87,8 @@ def rediagnose(
         .where(
             TaskQueue.session_id == session_id,
             TaskQueue.round_no == latest.round_no,
-            TaskQueue.task_type == TaskType.CASE_CLEAN.value,
+            # 首例路由会把 READY 的 case_clean 行原地转成 case_ai，payload 仍留在该行
+            TaskQueue.task_type.in_([TaskType.CASE_CLEAN.value, TaskType.CASE_AI.value]),
         )
         .order_by(TaskQueue.created_at.desc())
         .limit(1)

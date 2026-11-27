@@ -356,6 +356,50 @@ def receive_status(
     return {"ok": True}
 
 
+@app.get("/api/v1/aitest/aitrace/dashboard")
+def dashboard_proxy(
+    product_id: str | None = None,
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> JSONResponse:
+    """六大运营视图数据（spec FR7）：aitest 平台页同源呈现，只拉不推。"""
+    _auth(x_aitest_read_token)
+    path = "/api/v1/aitrace/dashboard/summary"
+    if product_id:
+        path += f"?product_id={product_id}"
+    return _json_passthrough(_forward("GET", path))
+
+
+@app.post("/api/v1/aitest/aitrace/feedback")
+def feedback_proxy(
+    payload: dict[str, Any],
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> JSONResponse:
+    """两态反馈代理（spec FR6）：VALID / INVALID±修正，透传知因响应。"""
+    _auth(x_aitest_read_token)
+    return _json_passthrough(_forward("POST", "/api/v1/aitrace/feedback", payload))
+
+
+@app.post("/api/v1/aitest/aitrace/sessions/{session_id}/rediagnose")
+def rediagnose_proxy(
+    session_id: str,
+    payload: dict[str, Any] | None = None,
+    x_aitest_read_token: Annotated[str | None, Header()] = None,
+) -> JSONResponse:
+    """重诊代理（spec FR9）：追加轮次，透传知因响应。"""
+    _auth(x_aitest_read_token)
+    body = payload or {}
+    return _json_passthrough(
+        _forward(
+            "POST",
+            f"/api/v1/aitrace/sessions/{session_id}/rediagnose",
+            {
+                "trigger_user_id": body.get("trigger_user_id") or "zhangsan",
+                "hint": body.get("hint"),
+            },
+        )
+    )
+
+
 @app.get("/__mock/callbacks")
 def callbacks(x_aitest_read_token: Annotated[str | None, Header()] = None) -> dict[str, Any]:
     _auth(x_aitest_read_token)
