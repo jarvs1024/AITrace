@@ -722,4 +722,13 @@ git push
 
 ## 执行记录（2026-11-27）
 
-（本表在实施过程中逐任务回填：门禁数字、drill 证据、实测基线、裁决。)
+| 任务 | 证据 |
+| --- | --- |
+| T1 观测底座 | commit 44f2ded；`make verify` 全绿（当时 362 通过）；tests/unit/test_observability.py 15 用例含令牌掩码、直方图最近秩、阶段事件双落（指标+日志） |
+| T2 水位+背压 | commit（见本轮提交）；tests/unit/test_watermark.py 8 用例 + tests/integration/test_backpressure.py 4 用例全绿；`make verify`：368 passed + 26 contract + 4 e2e，coverage 94.98%；实测 429 QUEUE_FULL（全局深度 5、单令牌深度 1，retry_after=60）、507 DISK_FULL（quota 1000B/占用 900B）；WARN 档（70%）触发仅清 TTL、FORCE 档按 未评价→无效→有效 顺序淘汰且不碰 RUNNING 批次 |
+
+裁决记录（T2）：
+- `IngestService.deliver` 增 `pre_checks: list[Callable[[], None]] | None`，背压闭包在路由层构建（含 levels 顺序：全局深度→单令牌深度→磁盘水位），不侵入 ingest 内部逻辑。
+- evict 只删数据目录（evidence round 目录/rawlogs 批次目录），DB 行保留作审计；evidence 父会话目录删空后一并 rmdir。
+- 无 `l2_quota_bytes` 时按 data_dir 所在卷物理使用率计提；data_dir 不存在视为 0；rawlogs 目录 mtime 统一按 UTC 感知时间与 now 比较（修 naive/aware TypeError）。
+- 生产 ORM 同批 flush 的 round/session 插入排序不可依赖（生产链路本就先写 session 再写 round），测试种子显式 flush 顺序对齐。

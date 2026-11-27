@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -36,7 +37,11 @@ class IngestService:
         self._clock = clock
         self._ids = ids
 
-    def deliver(self, payload: DeliveryPayload) -> IngestOutcome:
+    def deliver(
+        self, payload: DeliveryPayload, *, pre_checks: list[Callable[[], None]] | None = None
+    ) -> IngestOutcome:
+        for check in pre_checks or []:
+            check()
         now = self._clock.now()
         profile = self._resolver.resolve(payload.product_id)
         batch_task_id = self._upsert_batch(payload, now)

@@ -50,6 +50,11 @@ _FIELD_LABELS = {
     "storage.data_dir": "数据根目录",
     "storage.max_attachment_bytes": "附件大小上限",
     "storage.profile_domains_dir": "领域画像目录",
+    "storage.l2_quota_bytes": "L2 原始日志容量配额",
+    "storage.l1_ttl_days": "证据保留天数（L1 TTL）",
+    "storage.l2_ttl_days": "原始日志保留天数（L2 TTL）",
+    "storage.watermark_warn_fraction": "磁盘水位预警比例",
+    "storage.watermark_force_fraction": "磁盘水位强制清理比例",
     "ai": "AI 配置",
     "ai.edition": "AI 版本",
     "ai.model": "AI 模型",
@@ -140,6 +145,11 @@ class StorageSettings(BaseModel):
     max_attachment_bytes: int = Field(default=50 * 1024 * 1024, ge=1024 * 1024)
     profile_domains_dir: Path = Path("deploy/config/domains")
     cutoff_rules_file: Path = Path("deploy/config/rules/cutoff.yaml")
+    l2_quota_bytes: int | None = Field(default=None, ge=1)
+    l1_ttl_days: int = Field(default=30, ge=1)
+    l2_ttl_days: int = Field(default=30, ge=1)
+    watermark_warn_fraction: float = Field(default=0.70, gt=0, le=1)
+    watermark_force_fraction: float = Field(default=0.85, gt=0, le=1)
 
 
 class AISettings(BaseModel):
